@@ -3,45 +3,61 @@
 Dokumen ini menjelaskan cara 9Router di Android Termux dikonfigurasi ke PC
 Windows, dari awal sampai sinkronisasi pertama berjalan.
 
-Ada dua cara. Yang pertama manual, yang kedua membiarkan HP menuliskan
-konfigurasinya. Jalur kedua disarankan karena bridge key itu 64 karakter hex
-dan menyalinnya dengan tangan adalah cara yang sangat mudah menghasilkan satu
-huruf salah.
+**Catatan penting:** Di HP **tidak perlu clone repo ini** jika kamu menyalin URL
+dan Bridge Key secara manual. `9router bridge` adalah perintah bawaan 9Router,
+bukan bagian dari repo ini.
+
+Ada dua cara menghubungkan:
+1. **Cara manual (tanpa clone di HP):** Cukup jalankan 9Router + tunnel di HP, baca key via `9router bridge`, lalu isi config di PC.
+2. **Cara otomatis via script:** Menjalankan `termux/9router-bridge-export.sh` di HP untuk membuat file setup markdown siap-import.
 
 ---
 
-## 1. Pastikan bridge hidup
+## 1. Menyiapkan Koneksi & Bridge di HP
 
-Di Termux:
+Pastikan 9Router sudah berjalan di Termux (mendengarkan di port lokal `20128`).
+Pilih salah satu dari 3 cara berikut agar PC bisa mengaksesnya:
+
+### Opsi A — Mode LAN (Paling direkomendasikan jika 1 Wi-Fi)
+Tidak butuh tunnel, tidak butuh internet, tidak ada rotasi domain:
+1. Cek IP HP di Termux dengan `ifconfig` atau lihat pengaturan Wi-Fi Android (misal `192.168.1.50`).
+2. Endpoint PC: `http://192.168.1.50:20128`.
+
+### Opsi B — Cloudflare Tunnel (Gratis, tanpa akun, tanpa interstitial)
+1. Install `cloudflared` di Termux:
+   ```sh
+   pkg install cloudflared
+   ```
+2. Jalankan tunnel:
+   ```sh
+   cloudflared tunnel --url http://127.0.0.1:20128
+   ```
+3. Salin URL publik yang muncul (format: `https://<random>.trycloudflare.com`).
+
+### Opsi C — ngrok
+1. Jalankan ngrok di Termux:
+   ```sh
+   ngrok http 20128
+   ```
+2. Salin URL publik `https://<random>.ngrok-free.dev`.
+   *(Ingat: ngrok punya halaman interstitial peringatan browser; script ini sudah otomatis melewatinya via header).*
+
+### Mengambil Bridge Key
+
+Setelah salah satu opsi di atas aktif, jalankan di Termux:
 
 ```sh
 9router bridge
 ```
 
-Perintah ini mencetak **bridge key** dan **URL tunnel**, plus perintah siap
-pakai untuk PC. Simpan keluarannya.
-
-Kalau 9Router belum menjalankan tunnel, `9router bridge` akan memberi tahu.
-9Router mendengarkan di port `20128` di HP, dan tunnel ngrok meneruskan
-port itu ke URL publik.
-
-> **URL ngrok free berubah setiap tunnel di-restart.** Ini bukan bug. Lihat
-> [gotcha.md](gotcha.md#url-ngrok-yang-berputar).
-
-### Alternatif: mode LAN
-
-Kalau HP dan PC di Wi-Fi yang sama, tunnel ngrok tidak diperlukan sama sekali:
-
-```
-http://<IP-HP>:20128
-```
-
-Tidak ada ngrok, tidak ada rotasi URL, tidak perlu restart tunnel. Kalau tidak
-bisa diakses, cek firewall Windows. Kelolaannya ada di menu `9`.
+Perintah ini mencetak **bridge key** (64 hex characters) dan URL.
+> Jika HP baru pertama kali dipasang 9Router ("kosongan"), key akan otomatis
+> digenerate di `~/.9router/auth/bridge-key`. Outputnya juga berisi perintah
+> siap pakai untuk PC.
 
 ---
 
-## 2a. Cara manual
+## 2a. Cara manual (Tanpa Clone di HP)
 
 Di PC:
 
@@ -52,11 +68,11 @@ Copy-Item sync-9router.config.example.json sync-9router.config.json
 notepad sync-9router.config.json
 ```
 
-Isi dua baris ini dari `9router bridge`:
+Isi dua baris ini dari output di Termux:
 
 ```json
 {
-  "remoteUrl": "https://<NGROK_URL>",
+  "remoteUrl": "https://<URL_TUNNEL_ATAU_LAN>",
   "bridgeKey": "<64 karakter hex>",
   "defaultModel": "",
   "tools": ["opencode", "omp", "hermes", "claude", "codex"],
@@ -65,7 +81,7 @@ Isi dua baris ini dari `9router bridge`:
 }
 ```
 
-Lalu:
+Lalu uji & sync:
 
 ```powershell
 .\sync-9router.bat --cli -WhatIf

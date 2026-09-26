@@ -60,6 +60,22 @@ respons divalidasi benar-benar JSON sebelum lanjut. Jangan hapus header itu.
 
 ---
 
+## Cloudflare Tunnel vs ngrok
+
+Kalau kamu sering terganggu dengan limitasi atau interstitial ngrok, gunakan
+**Cloudflare Tunnel (`cloudflared`)** di Termux:
+
+```sh
+pkg install cloudflared
+cloudflared tunnel --url http://127.0.0.1:20128
+```
+
+- **Kelebihan**: Gratis, tanpa akun/signup, dan **tidak ada halaman interstitial** seperti ngrok.
+- **Format URL**: `https://<random>.trycloudflare.com`.
+- **Sifat**: Seperti halnya ngrok gratis, URL acak ini akan berganti jika tunnel di-restart. Jika butuh domain permanen, gunakan Cloudflare Named Tunnel atau mode LAN.
+
+---
+
 ## `Get-Content` merusak file UTF-8
 
 `Get-Content` di Windows PowerShell 5.1 mendekode memakai **codepage ANSI

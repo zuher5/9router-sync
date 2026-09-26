@@ -113,15 +113,16 @@ esac
 # Resolve the tunnel URL
 # ---------------------------------------------------------------------------
 #
-# --url wins. Otherwise take the first ngrok-looking URL out of `9router bridge`,
-# which already prints the ready-to-paste command for the PC. Parsing it is a
-# convenience, not a contract: if the wording changes, --url still works.
+# --url wins. Otherwise take the first tunnel URL out of `9router bridge`
+# (supports ngrok and trycloudflare.com), which prints the ready-to-paste command
+# for the PC. Parsing it is a convenience, not a contract: if the wording
+# changes, --url still works.
 
 URL_SOURCE=""
 if [ -z "$URL" ]; then
     if need 9router; then
         URL="$(9router bridge 2>/dev/null \
-               | grep -oE 'https://[A-Za-z0-9._-]+\.(ngrok-free\.dev|ngrok\.io|ngrok-app\.dev)' \
+               | grep -oE 'https://[A-Za-z0-9._-]+\.(ngrok-free\.dev|ngrok\.io|ngrok-app\.dev|trycloudflare\.com)' \
                | head -n 1)"
         if [ -n "$URL" ]; then
             URL_SOURCE="9router bridge"
