@@ -16,7 +16,7 @@ REM "--cli" boleh ditulis di depan dan akan dibuang.
 
 where powershell >nul 2>&1
 if errorlevel 1 (
-    echo [X] PowerShell tidak ditemukan.
+    echo [X] PowerShell not found.
     pause
     exit /b 1
 )
@@ -84,9 +84,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%sync-9router.ps
 set RC=%errorlevel%
 echo.
 if "%RC%"=="0" (
-    echo [OK] Selesai.
+    echo [OK] Done.
 ) else (
-    echo [X] Sync gagal, tidak ada file yang ditulis. Lihat pesan di atas.
+    echo [X] Sync failed, no files written. See error above.
 )
 exit /b %RC%
 

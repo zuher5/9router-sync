@@ -28,17 +28,17 @@ $script:TuiConfigPath = $ConfigPath
 # ---------------------------------------------------------------------------
 
 $script:Menu = @(
-    @{ Key = "1"; Label = "Sync sekarang";       Hint = "tarik model & koneksi dari 9Router" },
-    @{ Key = "2"; Label = "Preview (dry-run)";   Hint = "lihat hasilnya tanpa menulis" },
-    @{ Key = "3"; Label = "Ubah pengaturan";     Hint = "URL, bridge key, default, tool, backup" },
-    @{ Key = "4"; Label = "Test koneksi";        Hint = "bridge hidup? auth benar?" },
-    @{ Key = "5"; Label = "Test model";          Hint = "smoke test tiap model" },
-    @{ Key = "6"; Label = "Validasi file config"; Hint = "parse YAML/JSON + cek pin" },
-    @{ Key = "7"; Label = "Riwayat run";         Hint = "20 sync terakhir" },
-    @{ Key = "8"; Label = "Pulihkan backup";     Hint = "kembalikan file dari .bak" },
-    @{ Key = "9"; Label = "Kelola URL";          Hint = "uji semua URL, adopsi yang jalan" },
-    @{ Key = "I"; Label = "Import setup HP";     Hint = "baca 9sync-setup.local.md dari Termux" },
-    @{ Key = "0"; Label = "Keluar";               Hint = "" }
+    @{ Key = "1"; Label = "Sync now";            Hint = "pull models & endpoints from 9Router" },
+    @{ Key = "2"; Label = "Preview (dry run)";    Hint = "see changes without writing files" },
+    @{ Key = "3"; Label = "Settings";             Hint = "URL, bridge key, default model, tools, backups" },
+    @{ Key = "4"; Label = "Test connection";     Hint = "bridge alive? auth valid?" },
+    @{ Key = "5"; Label = "Test models";         Hint = "smoke test each model" },
+    @{ Key = "6"; Label = "Validate configs";    Hint = "parse YAML/JSON + check model pins" },
+    @{ Key = "7"; Label = "Run history";          Hint = "last 20 syncs" },
+    @{ Key = "8"; Label = "Restore backup";       Hint = "revert config from .bak" },
+    @{ Key = "9"; Label = "Manage URLs";          Hint = "test all URLs, adopt working one" },
+    @{ Key = "I"; Label = "Import phone setup";   Hint = "read 9sync-setup.local.md from Termux" },
+    @{ Key = "0"; Label = "Quit";                Hint = "" }
 )
 $script:QuitIndex = 10
 
@@ -113,7 +113,7 @@ $script:StatusColor = @{ updated = "Green"; unchanged = "DarkGray"; skipped = "Y
 # dashboard down for anyone who had not filled the config in yet.
 function Format-BridgeKey([string]$k) {
     $s = "$k".Trim()
-    if (-not $s) { return "(belum diisi)" }
+    if (-not $s) { return "(not set)" }
     if ($s.Length -le 16) { return $s }
     return $s.Substring(0, 16) + "..."
 }
@@ -135,7 +135,7 @@ function Ask([string]$prompt) {
     return "$(Read-Host $prompt)".Trim()
 }
 
-function Wait-Enter([string]$msg = "Enter untuk kembali ke menu") {
+function Wait-Enter([string]$msg = "Press Enter to return to menu") {
     Write-Host ""
     Write-Host "  $msg ..." -ForegroundColor DarkGray
     $k = Read-Key
@@ -158,38 +158,38 @@ function Show-Dashboard($cfg, $state, [int]$sel) {
     Write-Rule
 
     $health = $state.modelHealth
-    $lineStatus = "belum pernah dicek"
+    $lineStatus = "not checked yet"
     $lineColor = "DarkGray"
     if ($health -and ($health.PSObject.Properties.Name -contains "__probe")) {
         $p = $health.'__probe'
-        $lineStatus = "$($p.ok)/$($p.total) model hidup"
+        $lineStatus = "$($p.ok)/$($p.total) models healthy"
         $lineColor = if ($p.ok -eq $p.total) { "Green" } elseif ($p.ok -gt 0) { "Yellow" } else { "Red" }
     }
 
     Write-Host ""
     Write-Host ("  Endpoint    {0}" -f (Format-Url $cfg.remoteUrl)) -ForegroundColor White
     Write-Host ("  Bridge key  {0}" -f (Format-BridgeKey $cfg.bridgeKey)) -ForegroundColor DarkGray
-    Write-Host ("  Default     {0}" -f $(if ($cfg.defaultModel) { $cfg.defaultModel } else { "ikuti 9Router" })) -ForegroundColor DarkGray
+    Write-Host ("  Default     {0}" -f $(if ($cfg.defaultModel) { $cfg.defaultModel } else { "default (9Router)" })) -ForegroundColor DarkGray
     Write-Host ("  Tools       {0}" -f (@($cfg.tools) -join ", ")) -ForegroundColor DarkGray
     Write-Host ("  Health      {0}" -f $lineStatus) -ForegroundColor $lineColor
 
     $lr = $state.lastRun
     if ($lr) {
-        Write-Host ("  Sync lalu   {0}  {1} model  ({2})" -f $lr.at, $lr.modelCount, $lr.status) -ForegroundColor DarkGray
+        Write-Host ("  Last sync   {0}  {1} models  ({2})" -f $lr.at, $lr.modelCount, $lr.status) -ForegroundColor DarkGray
     } else {
-        Write-Host ("  Sync lalu   belum pernah jalan" ) -ForegroundColor DarkGray
+        Write-Host ("  Last sync   never" ) -ForegroundColor DarkGray
     }
 
     Write-Host ""
-    Write-Host ("  {0,-10} {1,5}  {2,-14} {3,-8} {4}" -f "TOOL", "MODEL", "STATUS", "TERAKHIR", "DI PC") -ForegroundColor DarkGray
-    # "DI PC" answers the question a fresh clone raises first: is this tool even
+    Write-Host ("  {0,-10} {1,5}  {2,-14} {3,-8} {4}" -f "TOOL", "MODELS", "STATUS", "UPDATED", "ON PC") -ForegroundColor DarkGray
+    # "ON PC" answers the question a fresh clone raises first: is this tool even
     # installed here? A tool that is absent reports not-installed, which is a
     # fact about the machine rather than a sync failure.
     $presence = Get-ToolPresence
     foreach ($t in @("opencode", "omp", "hermes", "claude", "codex")) {
-        $here = "ada"
+        $here = "yes"
         $hereColor = "DarkGray"
-        if ($presence.Contains($t) -and -not $presence[$t].Exists) { $here = "belum"; $hereColor = "DarkYellow" }
+        if ($presence.Contains($t) -and -not $presence[$t].Exists) { $here = "no"; $hereColor = "DarkYellow" }
         $pt = $null
         if ($state.perTool -and ($state.perTool.PSObject.Properties.Name -contains $t)) { $pt = $state.perTool.$t }
         if ($pt) {
@@ -197,7 +197,7 @@ function Show-Dashboard($cfg, $state, [int]$sel) {
             $at = if ($pt.at) { $pt.at } else { "-" }
             Write-Host ("  {0,-10} {1,5}  {2,-14} {3,-8} " -f $t, $mc, $pt.status, $at) -NoNewline -ForegroundColor (Get-StatusColor $pt.status)
         } else {
-            Write-Host ("  {0,-10} {1,5}  {2,-14} {3,-8} " -f $t, "-", "belum", "-") -NoNewline -ForegroundColor DarkGray
+            Write-Host ("  {0,-10} {1,5}  {2,-14} {3,-8} " -f $t, "-", "never", "-") -NoNewline -ForegroundColor DarkGray
         }
         Write-Host ("{0}" -f $here) -ForegroundColor $hereColor
     }
@@ -223,14 +223,14 @@ function Show-Dashboard($cfg, $state, [int]$sel) {
         }
         if ($b) {
             Write-Host (" {0}[{1}] {2}" -f $mb, $b.Key, $b.Label) -ForegroundColor $cb -BackgroundColor $bg
-        } elseif (-not $a) {
+        } else {
             Write-Host ""
         }
     }
     Write-Rule "-"
     Write-Host ""
-    Write-Host "  Panah atas/bawah pindah   kiri/kanan kolom   Enter pilih   angka/huruf langsung" -ForegroundColor DarkGray
-    Write-Host "  Gambar ASCII semua, jadi aman di cmd.exe / PowerShell ISE / Windows Terminal" -ForegroundColor DarkGray
+    Write-Host "  Arrow keys move   Enter selects   Number/Letter selects directly" -ForegroundColor DarkGray
+    Write-Host "  Pure ASCII characters, safe on cmd.exe / PowerShell ISE / Windows Terminal" -ForegroundColor DarkGray
 }
 
 # ---------------------------------------------------------------------------
@@ -263,7 +263,7 @@ function Show-SyncResult($res) {
     if (-not $res.Ok) {
         Write-Host ""
         Write-Host "  [X] $($res.Error)" -ForegroundColor Red
-        Write-Host "  Tidak ada file yang ditulis." -ForegroundColor Yellow
+        Write-Host "  No files were written." -ForegroundColor Yellow
         return
     }
     Write-Host ""
@@ -274,7 +274,7 @@ function Show-SyncResult($res) {
     $moved = @($res.Changes | Where-Object { $_.Added.Count -gt 0 -or $_.Removed.Count -gt 0 })
     if ($moved.Count -gt 0) {
         Write-Host ""
-        Write-Host "  Ringkasan perubahan model:" -ForegroundColor Cyan
+        Write-Host "  Model changes summary:" -ForegroundColor Cyan
         foreach ($c in $moved) {
             $parts = @()
             if ($c.Added.Count -gt 0)   { $parts += "+$($c.Added.Count)  $($c.Added -join ', ')" }
@@ -284,29 +284,29 @@ function Show-SyncResult($res) {
     }
     if ($res.Dangling.Count -gt 0) {
         Write-Host ""
-        Write-Host "  Pin dilepas (model sudah tidak ada di 9Router):" -ForegroundColor Yellow
+        Write-Host "  Unpinned models (no longer in 9Router):" -ForegroundColor Yellow
         foreach ($d in $res.Dangling) {
             Write-Host ("    {0,-9} {1,-26} -> {2}" -f $d.Tool, $d.Where, $d.Model) -ForegroundColor Yellow
         }
     }
     if ($res.OutOfSync.Count -gt 0) {
         Write-Host ""
-        Write-Host "  Di luar daftar sync, tidak disentuh (base_url langsung):" -ForegroundColor DarkGray
+        Write-Host "  Outside sync list, left untouched (direct base_url):" -ForegroundColor DarkGray
         foreach ($o in $res.OutOfSync) { Write-Host ("    {0,-9} {1}" -f $o.Tool, $o.Model) -ForegroundColor DarkGray }
     }
 
     Write-Host ""
     if ($res.WhatIf) {
-        Write-Host "  Preview selesai. Tidak ada file yang ditulis." -ForegroundColor Cyan
+        Write-Host "  Preview complete. No files were written." -ForegroundColor Cyan
     } else {
-        Write-Host "  Selesai. $($res.ModelIds.Count) model, default $($res.DefaultModel)" -ForegroundColor Green
+        Write-Host "  Done. $($res.ModelIds.Count) models, default $($res.DefaultModel)" -ForegroundColor Green
     }
 }
 
 function Invoke-ActionSync($cfg, [switch]$WhatIf) {
     Clear-Screen
     Write-Rule
-    Write-Title $(if ($WhatIf) { "preview - tidak menulis file" } else { "sync dari 9Router" })
+    Write-Title $(if ($WhatIf) { "preview - no files written" } else { "sync from 9Router" })
     Write-Rule
     Write-Host ""
     $res = Invoke-Sync9Router -Config $cfg -WhatIf:$WhatIf
@@ -318,7 +318,7 @@ function Invoke-ActionSync($cfg, [switch]$WhatIf) {
 function Invoke-ActionTestConnection($cfg) {
     Clear-Screen
     Write-Rule
-    Write-Title "test koneksi"
+    Write-Title "test connection"
     Write-Rule
     Write-Host ""
 
@@ -326,22 +326,22 @@ function Invoke-ActionTestConnection($cfg) {
     if ($r.Ok) {
         Write-Host ("  bridge     OK   {0} ms   {1}" -f $r.Ms, (Format-Url $cfg.remoteUrl)) -ForegroundColor Green
     } else {
-        Write-Host ("  bridge     GAGAL  {0}   {1}" -f $r.Note, (Format-Url $cfg.remoteUrl)) -ForegroundColor Red
+        Write-Host ("  bridge     FAILED  {0}   {1}" -f $r.Note, (Format-Url $cfg.remoteUrl)) -ForegroundColor Red
         Write-Host ""
-        Write-Host "  Kalau 404, URL ngrok sudah rotasi. Pilih [9] Kelola URL." -ForegroundColor Yellow
+        Write-Host "  If 404, ngrok URL has rotated. Select [9] Manage URLs." -ForegroundColor Yellow
         Wait-Enter
         return
     }
 
     try {
         Connect-Bridge $cfg
-        Write-Host ("  auth       OK   API key aktif" ) -ForegroundColor Green
+        Write-Host ("  auth       OK   API key active" ) -ForegroundColor Green
         $sw = [System.Diagnostics.Stopwatch]::StartNew()
         $cat = Get-ModelCatalog
         $sw.Stop()
-        Write-Host ("  katalog    {0} model   {1} ms" -f @($cat).Count, $sw.ElapsedMilliseconds) -ForegroundColor Green
+        Write-Host ("  catalog    {0} models   {1} ms" -f @($cat).Count, $sw.ElapsedMilliseconds) -ForegroundColor Green
     } catch {
-        Write-Host ("  auth       GAGAL  {0}" -f $_.Exception.Message) -ForegroundColor Red
+        Write-Host ("  auth       FAILED  {0}" -f $_.Exception.Message) -ForegroundColor Red
     }
     Wait-Enter
 }
@@ -352,7 +352,7 @@ function Invoke-ActionTestConnection($cfg) {
 function Invoke-ActionTestModels($cfg) {
     Clear-Screen
     Write-Rule
-    Write-Title "smoke test model"
+    Write-Title "smoke test models"
     Write-Rule
     Write-Host ""
 
@@ -369,13 +369,13 @@ function Invoke-ActionTestModels($cfg) {
         $src = "opencode.json"
     }
     if ($ids.Count -eq 0) {
-        Write-Host "  Tidak ada daftar model di file PC. Jalankan sync dulu." -ForegroundColor Yellow
+        Write-Host "  No models configured in PC files. Run sync first." -ForegroundColor Yellow
         Wait-Enter
         return
     }
-    Write-Host ("  Sumber: {0}   ({1} model)" -f $src, $ids.Count) -ForegroundColor DarkGray
-    Write-Host "  Timeout 40 detik per model: provider yang masih dingin bisa lambat" -ForegroundColor DarkGray
-    Write-Host "  pada panggilan pertama, itu bukan berarti model rusak." -ForegroundColor DarkGray
+    Write-Host ("  Source: {0}   ({1} models)" -f $src, $ids.Count) -ForegroundColor DarkGray
+    Write-Host "  40s timeout per model: cold providers can be slow on first call," -ForegroundColor DarkGray
+    Write-Host "  this does not mean model is broken." -ForegroundColor DarkGray
     Write-Host ""
 
     try { Connect-Bridge $cfg } catch {
@@ -391,8 +391,8 @@ function Invoke-ActionTestModels($cfg) {
         $id = $ids[$i]
         Write-Host ("  [{0}/{1}] {2,-44}" -f ($i + 1), $ids.Count, $id) -NoNewline
         $t = Test-ModelLive $id 40
-        if ($t.Ok) { $nOk++; Write-Host ("  OK    {0,5} ms" -f $t.Ms) -ForegroundColor Green }
-        else      { Write-Host ("  GAGAL {0,5} ms" -f $t.Ms) -ForegroundColor Red }
+        if ($t.Ok) { $nOk++; Write-Host ("  OK     {0,5} ms" -f $t.Ms) -ForegroundColor Green }
+        else       { Write-Host ("  FAILED {0,5} ms" -f $t.Ms) -ForegroundColor Red }
         Write-Host ("           {0}" -f $t.Note) -ForegroundColor DarkGray
         $health | Add-Member -NotePropertyName $id -NotePropertyValue ([pscustomobject]@{
             ok = $t.Ok; code = $t.Code; note = $t.Note; at = (Get-Date).ToString("s")
@@ -405,16 +405,16 @@ function Invoke-ActionTestModels($cfg) {
     Save-Sync9RouterState $state
 
     Write-Host ""
-    if ($nOk -eq $ids.Count) { Write-Host "  Semua model hidup." -ForegroundColor Green }
-    elseif ($nOk -eq 0)       { Write-Host "  Tidak ada model yang bisa dipanggil. Cek kredit provider di 9Router." -ForegroundColor Red }
-    else                     { Write-Host "  $nOk dari $($ids.Count) hidup. Sisanya perlu dibenahi di 9Router." -ForegroundColor Yellow }
+    if ($nOk -eq $ids.Count) { Write-Host "  All models healthy." -ForegroundColor Green }
+    elseif ($nOk -eq 0)      { Write-Host "  No models responded. Check provider credits on 9Router." -ForegroundColor Red }
+    else                     { Write-Host "  $nOk of $($ids.Count) healthy. Check remaining models on 9Router." -ForegroundColor Yellow }
     Wait-Enter
 }
 
 function Invoke-ActionValidate($cfg) {
     Clear-Screen
     Write-Rule
-    Write-Title "validasi file config"
+    Write-Title "validate config files"
     Write-Rule
     Write-Host ""
 
@@ -453,7 +453,7 @@ except Exception as e:
     foreach ($t in $targets) {
         $name = Split-Path -Leaf $t.Path
         if (-not (Test-Path -LiteralPath $t.Path)) {
-            Write-Host ("  {0,-9} {1,-18} tidak ada" -f $t.Tool, $name) -ForegroundColor DarkGray
+            Write-Host ("  {0,-9} {1,-18} missing" -f $t.Tool, $name) -ForegroundColor DarkGray
             $skip++; continue
         }
         $raw = Read-TextUtf8 $t.Path
@@ -468,20 +468,20 @@ except Exception as e:
         } elseif ($t.Kind -eq "yaml") {
             # Tabs are illegal as YAML indentation, and a tab sneaks in easily
             # when a block is rewritten by hand.
-            if ($raw -match "(?m)^\t") { $ok = $false; $note = "ada tab di awal baris" }
+            if ($raw -match "(?m)^\t") { $ok = $false; $note = "tab found at line start" }
             if ($ok -and $py -and $scriptFile) {
                 $out = (& $py.Source $scriptFile $t.Path 2>&1 | Out-String).Trim()
                 if ($out -eq "OK") { $note = "YAML valid" }
-                elseif ($out -eq "NOPYAML") { $ok = $true; $note = "pyyaml tidak ada, cek struktur saja"; $skip++ }
+                elseif ($out -eq "NOPYAML") { $ok = $true; $note = "pyyaml not installed, basic check only"; $skip++ }
                 else { $ok = $false; $note = $out }
             } else {
-                $note = "YAML, dicek struktur saja"
+                $note = "YAML, basic check only"
             }
         } else {
-            $note = "TOML, dicek struktur saja"
+            $note = "TOML, basic check only"
         }
 
-        if ($hasBom) { $note += "  [ADA BOM]"; if ($ok) { $ok = $false } }
+        if ($hasBom) { $note += "  [BOM PRESENT]"; if ($ok) { $ok = $false } }
         if ($ok) { Write-Host ("  {0,-9} {1,-18} {2}" -f $t.Tool, $name, $note) -ForegroundColor Green; $pass++ }
         else       { Write-Host ("  {0,-9} {1,-18} {2}" -f $t.Tool, $name, $note) -ForegroundColor Red; $fail++ }
     }
@@ -492,7 +492,7 @@ except Exception as e:
     $oc = Read-JsonOrNull $ocPath
     if ($oc) {
         $ids = @(Get-OpenCodeModelIds $oc)
-        Write-Host "  Pin model di opencode.json:" -ForegroundColor Cyan
+        Write-Host "  Model pins in opencode.json:" -ForegroundColor Cyan
 
         # Every agent model is classified, including pins to other providers, so
         # it is visible that they were recognised and deliberately left alone.
@@ -517,38 +517,38 @@ except Exception as e:
                 $prov = "$($e.Raw.providerID)"; $mname = "$($e.Raw.model)"
             }
             if ($prov -ne "9router") {
-                Write-Host ("    {0,-20} {1}/{2}   provider lain, tidak disentuh" -f $e.Where, $prov, $mname) -ForegroundColor DarkGray
+                Write-Host ("    {0,-20} {1}/{2}   other provider, untouched" -f $e.Where, $prov, $mname) -ForegroundColor DarkGray
             } elseif ($ids -contains $mname) {
-                Write-Host ("    {0,-20} 9router/{1}  ada di daftar" -f $e.Where, $mname) -ForegroundColor Green
+                Write-Host ("    {0,-20} 9router/{1}  in catalog" -f $e.Where, $mname) -ForegroundColor Green
             } else {
-                Write-Host ("    {0,-20} 9router/{1}  MENGGANTUR - tidak ada di daftar" -f $e.Where, $mname) -ForegroundColor Red
+                Write-Host ("    {0,-20} 9router/{1}  DANGLING - not in catalog" -f $e.Where, $mname) -ForegroundColor Red
                 $fail++
             }
         }
     }
 
     Write-Host ""
-    Write-Host ("  {0} lolos, {1} gagal" -f $pass, $fail) -ForegroundColor $(if ($fail -eq 0) { "Green" } else { "Red" })
+    Write-Host ("  {0} passed, {1} failed" -f $pass, $fail) -ForegroundColor $(if ($fail -eq 0) { "Green" } else { "Red" })
     Wait-Enter
 }
 
 function Invoke-ActionHistory($cfg) {
     Clear-Screen
     Write-Rule
-    Write-Title "riwayat run"
+    Write-Title "run history"
     Write-Rule
     Write-Host ""
     $state = Get-Sync9RouterState
     $log = @($state.log)
     if ($log.Count -eq 0) {
-        Write-Host "  Belum ada riwayat. Jalankan sync sekali." -ForegroundColor DarkGray
+        Write-Host "  No history yet. Run sync once." -ForegroundColor DarkGray
     } else {
-        Write-Host ("  {0,-20} {1,-6} {2,-6} {3}" -f "WAKTU", "HASIL", "MODEL", "CATATAN") -ForegroundColor DarkGray
+        Write-Host ("  {0,-20} {1,-6} {2,-6} {3}" -f "TIMESTAMP", "RESULT", "MODELS", "NOTE") -ForegroundColor DarkGray
         foreach ($e in $log) {
             $c = if ($e.ok) { "Green" } else { "Red" }
             $n = "$($e.note)"
             if ($n.Length -gt 40) { $n = $n.Substring(0, 40) + "..." }
-            Write-Host ("  {0,-20} {1,-6} {2,-6} {3}" -f $e.at, $(if ($e.ok) { "OK" } else { "GAGAL" }), $e.models, $n) -ForegroundColor $c
+            Write-Host ("  {0,-20} {1,-6} {2,-6} {3}" -f $e.at, $(if ($e.ok) { "OK" } else { "FAILED" }), $e.models, $n) -ForegroundColor $c
         }
     }
     Wait-Enter
@@ -557,7 +557,7 @@ function Invoke-ActionHistory($cfg) {
 function Invoke-ActionRestore {
     Clear-Screen
     Write-Rule
-    Write-Title "pulihkan backup"
+    Write-Title "restore backup"
     Write-Rule
     Write-Host ""
 
@@ -581,25 +581,25 @@ function Invoke-ActionRestore {
     }
 
     if ($items.Count -eq 0) {
-        Write-Host "  Tidak ada backup ditemukan." -ForegroundColor DarkGray
+        Write-Host "  No backups found." -ForegroundColor DarkGray
         Wait-Enter
         return
     }
 
-    Write-Host "  Setiap file punya beberapa versi. Pilih yang mau dikembalikan." -ForegroundColor DarkGray
+    Write-Host "  Each file keeps multiple versions. Choose which one to restore." -ForegroundColor DarkGray
     Write-Host ""
     for ($i = 0; $i -lt $items.Count; $i++) {
         $it = $items[$i]
         $stamp = ($it.When -replace [regex]::Escape((Split-Path -Leaf $it.Target) + "."), "") -replace "\.bak$", ""
         $sz = (Get-Item -LiteralPath $it.File).Length
-        Write-Host ("  [{0,2}] {1,-20} {2,-16} {3,7} byte" -f ($i + 1), (Split-Path -Leaf $it.Target), $stamp, $sz) -ForegroundColor Gray
+        Write-Host ("  [{0,2}] {1,-20} {2,-16} {3,7} bytes" -f ($i + 1), (Split-Path -Leaf $it.Target), $stamp, $sz) -ForegroundColor Gray
     }
     Write-Host ""
-    Write-Host "  [0] batal" -ForegroundColor DarkGray
-    $ans = Ask "  Pilih nomor"
+    Write-Host "  [0] cancel" -ForegroundColor DarkGray
+    $ans = Ask "  Select number"
     $n = 0
     if (-not [int]::TryParse($ans, [ref]$n) -or $n -lt 1 -or $n -gt $items.Count) {
-        Write-Host "  Batal." -ForegroundColor DarkGray
+        Write-Host "  Cancelled." -ForegroundColor DarkGray
         Wait-Enter
         return
     }
@@ -609,9 +609,9 @@ function Invoke-ActionRestore {
     Copy-Item -LiteralPath $pick.Target -Destination "$($pick.Target).$stamp2.bak" -Force -ErrorAction SilentlyContinue
     Copy-Item -LiteralPath $pick.File -Destination $pick.Target -Force
     Write-Host ""
-    Write-Host ("  Dikembalikan: {0}" -f (Split-Path -Leaf $pick.Target)) -ForegroundColor Green
-    Write-Host ("  Versi sekarang disimpan dulu sebagai .{0}.bak" -f $stamp2) -ForegroundColor DarkGray
-    Write-Host "  Jalankan [6] Validasi file config untuk memastikan masih parses." -ForegroundColor DarkGray
+    Write-Host ("  Restored: {0}" -f (Split-Path -Leaf $pick.Target)) -ForegroundColor Green
+    Write-Host ("  Current version saved as .{0}.bak" -f $stamp2) -ForegroundColor DarkGray
+    Write-Host "  Run [6] Validate configs to ensure file parses." -ForegroundColor DarkGray
     Wait-Enter
 }
 
@@ -620,11 +620,11 @@ function Invoke-ActionRestore {
 function Invoke-ActionUrls($cfg) {
     Clear-Screen
     Write-Rule
-    Write-Title "kelola URL"
+    Write-Title "manage URLs"
     Write-Rule
     Write-Host ""
-    Write-Host "  URL ngrok free berganti tiap tunnel di-restart. Diuji satu per satu," -ForegroundColor DarkGray
-    Write-Host "  lalu ambil yang menjawab. LAN lokal tidak pernah berganti." -ForegroundColor DarkGray
+    Write-Host "  Free ngrok URLs rotate on restart. Test candidates one by one," -ForegroundColor DarkGray
+    Write-Host "  then adopt the responsive one. Local LAN IP never changes." -ForegroundColor DarkGray
     Write-Host ""
 
     $cands = @()
@@ -645,10 +645,10 @@ function Invoke-ActionUrls($cfg) {
     }
 
     Write-Host ""
-    Write-Host "  [$(($cands.Count + 1))] input URL baru" -ForegroundColor Gray
-    Write-Host "  [$(($cands.Count + 2))] mode LAN: http://<IP-HP>:20128 (tidak lewat ngrok)" -ForegroundColor Gray
-    Write-Host "  [0] kembali" -ForegroundColor DarkGray
-    $ans = Ask "  Pilih"
+    Write-Host "  [$(($cands.Count + 1))] enter new URL" -ForegroundColor Gray
+    Write-Host "  [$(($cands.Count + 2))] LAN mode: http://<PHONE-IP>:20128 (no tunnel)" -ForegroundColor Gray
+    Write-Host "  [0] back" -ForegroundColor DarkGray
+    $ans = Ask "  Select"
     $n = 0
     if (-not [int]::TryParse($ans, [ref]$n)) { return }
 
@@ -657,15 +657,15 @@ function Invoke-ActionUrls($cfg) {
         $pick = $results[$n - 1]
         if ($pick.Ok) { $newUrl = $pick.Url }
         else {
-            Write-Host "  URL itu tidak menjawab. Tidak diambil." -ForegroundColor Yellow
+            Write-Host "  URL is not responding. Not applied." -ForegroundColor Yellow
             Wait-Enter
             return
         }
     } elseif ($n -eq ($cands.Count + 1)) {
-        $u = Ask "  URL baru (https://... atau http://IP:20128)"
+        $u = Ask "  New URL (https://... or http://IP:20128)"
         if ($u) { $newUrl = $u.TrimEnd("/") }
     } elseif ($n -eq ($cands.Count + 2)) {
-        $ip = Ask "  IP HP di Wi-Fi yang sama"
+        $ip = Ask "  Phone IP on same Wi-Fi"
         if ($ip) { $newUrl = "http://${ip}:20128" }
     } else {
         return
@@ -674,44 +674,44 @@ function Invoke-ActionUrls($cfg) {
     if (-not $newUrl) { return }
 
     Write-Host ""
-    Write-Host ("  Menguji {0} ..." -f (Format-Url $newUrl)) -ForegroundColor Cyan
+    Write-Host ("  Testing {0} ..." -f (Format-Url $newUrl)) -ForegroundColor Cyan
     $v = Test-BridgeUrl $newUrl $cfg.bridgeKey 12
     if (-not $v.Ok) {
-        Write-Host ("  GAGAL: {0}" -f $v.Note) -ForegroundColor Red
-        Write-Host "  URL lama dipertahankan." -ForegroundColor DarkGray
+        Write-Host ("  FAILED: {0}" -f $v.Note) -ForegroundColor Red
+        Write-Host "  Kept existing URL." -ForegroundColor DarkGray
         Wait-Enter
         return
     }
     $cfg["remoteUrl"] = $newUrl
     Add-UrlHistory $cfg $newUrl
     Save-Sync9RouterConfig $cfg | Out-Null
-    Write-Host ("  OK, auth benar. Dipakai: {0}" -f (Format-Url $newUrl)) -ForegroundColor Green
-    Write-Host "  Jalankan [1] Sync sekarang untuk menerapkan." -ForegroundColor DarkGray
+    Write-Host ("  OK, auth valid. Active URL: {0}" -f (Format-Url $newUrl)) -ForegroundColor Green
+    Write-Host "  Run [1] Sync now to apply." -ForegroundColor DarkGray
     Wait-Enter
 }
 
 function Invoke-ActionSettings($cfg) {
     Clear-Screen
     Write-Rule
-    Write-Title "ubah pengaturan"
+    Write-Title "settings"
     Write-Rule
     Write-Host ""
-    Write-Host "  Kosongkan untuk memakai nilai sekarang." -ForegroundColor DarkGray
+    Write-Host "  Leave empty to keep current value." -ForegroundColor DarkGray
     Write-Host ""
 
     $url = Ask "  Endpoint URL  [$($cfg.remoteUrl)]"
     if ($url) { $cfg["remoteUrl"] = $url.TrimEnd("/") }
 
     $cur = "$($cfg.bridgeKey)".Trim()
-    $curHint = if (-not $cur) { "kosong" } elseif ($cur.Length -le 8) { $cur } else { $cur.Substring(0, 8) + "..." }
+    $curHint = if (-not $cur) { "empty" } elseif ($cur.Length -le 8) { $cur } else { $cur.Substring(0, 8) + "..." }
     $bk = Ask "  Bridge key    [$curHint]"
     if ($bk) { $cfg["bridgeKey"] = $bk.Trim() }
 
-    $dm = Ask "  Default model [$(if ($cfg.defaultModel) { $cfg.defaultModel } else { 'ikuti 9Router' })]"
+    $dm = Ask "  Default model [$(if ($cfg.defaultModel) { $cfg.defaultModel } else { 'default (9Router)' })]"
     if ($dm) { $cfg["defaultModel"] = $dm }
 
     Write-Host ""
-    Write-Host "  Tool yang di-sync. Ketik nama untuk toggle, Enter untuk selesai:" -ForegroundColor Gray
+    Write-Host "  Tools to sync. Type name to toggle, Enter when done:" -ForegroundColor Gray
     $sel = @{}
     foreach ($t in @("opencode", "omp", "hermes", "claude", "codex")) { $sel[$t] = (@($cfg.tools) -contains $t) }
     while ($true) {
@@ -720,31 +720,31 @@ function Invoke-ActionSettings($cfg) {
             $line += "[{0}]{1} " -f $(if ($sel[$t]) { "x" } else { " " }), $t
         }
         Write-Host $line -ForegroundColor White
-        $a = Ask "  ubah tool (ketik nama, atau Enter)"
+        $a = Ask "  toggle tool (type name, or press Enter)"
         if (-not $a) { break }
         $a = $a.ToLower()
         if ($sel.ContainsKey($a)) { $sel[$a] = -not $sel[$a] }
-        else { Write-Host "  Nama tidak dikenal: $a" -ForegroundColor Yellow }
+        else { Write-Host "  Unknown tool: $a" -ForegroundColor Yellow }
     }
     $newTools = @()
     foreach ($t in @("opencode", "omp", "hermes", "claude", "codex")) { if ($sel[$t]) { $newTools += $t } }
     if ($newTools.Count -eq 0) {
-        Write-Host "  Minimal satu tool harus aktif. Setting tool tidak diubah." -ForegroundColor Yellow
+        Write-Host "  At least one tool must be selected. Tools unchanged." -ForegroundColor Yellow
     } else {
         $cfg["tools"] = $newTools
     }
 
-    $bkp = Ask "  Jumlah backup per file [$($cfg.backupKeep)]"
+    $bkp = Ask "  Backups to keep per file [$($cfg.backupKeep)]"
     if ($bkp) {
         $n = 0
         if ([int]::TryParse($bkp, [ref]$n) -and $n -ge 1 -and $n -le 50) { $cfg["backupKeep"] = $n }
-        else { Write-Host "  Angka tidak valid, dilewati." -ForegroundColor Yellow }
+        else { Write-Host "  Invalid number, skipped." -ForegroundColor Yellow }
     }
 
     Add-UrlHistory $cfg $cfg.remoteUrl
     $p = Save-Sync9RouterConfig $cfg
     Write-Host ""
-    Write-Host ("  Tersimpan: {0}" -f $p) -ForegroundColor Green
+    Write-Host ("  Saved: {0}" -f $p) -ForegroundColor Green
     Wait-Enter
 }
 
@@ -754,21 +754,21 @@ function Invoke-ActionSettings($cfg) {
 function Invoke-ActionImportSetup($cfg) {
     Clear-Screen
     Write-Rule
-    Write-Title "import setup dari HP"
+    Write-Title "import phone setup"
     Write-Rule
     Write-Host ""
-    Write-Host "  Di Termux (HP) jalankan:" -ForegroundColor White
+    Write-Host "  On Termux (phone), run:" -ForegroundColor White
     Write-Host "    bash termux/9router-bridge-export.sh" -ForegroundColor Gray
     Write-Host ""
-    Write-Host "  Lalu transfer 9sync-setup.local.md ke PC dan arahkan ke file itu." -ForegroundColor DarkGray
+    Write-Host "  Transfer 9sync-setup.local.md to PC and provide path." -ForegroundColor DarkGray
     Write-Host ""
 
-    $in = Ask "  Path file setup"
-    if (-not $in) { Write-Host "  Dibatalkan." -ForegroundColor DarkGray; Wait-Enter; return }
+    $in = Ask "  Setup file path"
+    if (-not $in) { Write-Host "  Cancelled." -ForegroundColor DarkGray; Wait-Enter; return }
     $in = $in.Trim().Trim('"')
     if (-not (Test-Path -LiteralPath $in)) {
         Write-Host ""
-        Write-Err "File tidak ditemukan: $in"
+        Write-Err "File not found: $in"
         Wait-Enter
         return
     }
@@ -786,29 +786,29 @@ function Invoke-ActionImportSetup($cfg) {
 
     $problems = Test-SetupValues $setup
     Write-Host ""
-    Write-Host ("  remoteUrl    {0}" -f "$(if ($setup.remoteUrl) { $setup.remoteUrl } else { '(kosong)' })") -ForegroundColor White
+    Write-Host ("  remoteUrl    {0}" -f "$(if ($setup.remoteUrl) { $setup.remoteUrl } else { '(empty)' })") -ForegroundColor White
     $klen = "$(if ($setup.bridgeKey) { "$($setup.bridgeKey)".Trim() } else { '' })".Length
-    Write-Host ("  bridgeKey    {0} karakter" -f $klen) -ForegroundColor White
+    Write-Host ("  bridgeKey    {0} characters" -f $klen) -ForegroundColor White
     $dmu = "$(if ($setup.PSObject.Properties['defaultModel']) { $setup.defaultModel })"
-    Write-Host ("  defaultModel {0}" -f $(if ($dmu) { $dmu } else { "ikuti 9Router" })) -ForegroundColor DarkGray
+    Write-Host ("  defaultModel {0}" -f $(if ($dmu) { $dmu } else { "default (9Router)" })) -ForegroundColor DarkGray
     $tl = @()
     if ($setup.PSObject.Properties['tools']) { $tl = @($setup.tools) }
-    Write-Host ("  tools        {0}" -f $(if ($tl.Count) { $tl -join ", " } else { "(kosong)" })) -ForegroundColor DarkGray
+    Write-Host ("  tools        {0}" -f $(if ($tl.Count) { $tl -join ", " } else { "(empty)" })) -ForegroundColor DarkGray
     Write-Host ""
 
     if ($problems.Count) {
         foreach ($p in $problems) { Write-Err $p }
         Write-Host ""
-        Write-Host "  Config tidak disentuh." -ForegroundColor Yellow
+        Write-Host "  Config untouched." -ForegroundColor Yellow
         Wait-Enter
         return
     }
 
-    $a1 = Ask "  Terapkan remoteUrl + bridgeKey? (y/n)"
-    if ($a1 -notmatch '^(y|ya|yes)$') { Write-Host "  Dibatalkan." -ForegroundColor DarkGray; Wait-Enter; return }
+    $a1 = Ask "  Apply remoteUrl + bridgeKey? (y/n)"
+    if ($a1 -notmatch '^(y|yes)$') { Write-Host "  Cancelled." -ForegroundColor DarkGray; Wait-Enter; return }
 
-    $a2 = Ask "  Terapkan juga defaultModel/tools/backupKeep? (y/n)"
-    $force = ($a2 -match '^(y|ya|yes)$')
+    $a2 = Ask "  Also apply defaultModel/tools/backupKeep? (y/n)"
+    $force = ($a2 -match '^(y|yes)$')
 
     try {
         $imp = Import-Sync9RouterSetup -Path $in -Force:$force
@@ -821,13 +821,13 @@ function Invoke-ActionImportSetup($cfg) {
 
     Write-Host ""
     if ($imp.Changes.Count -eq 0) {
-        Write-Host "  Config sudah sama, tidak ada yang berubah." -ForegroundColor DarkGray
+        Write-Host "  Config identical, nothing changed." -ForegroundColor DarkGray
     } else {
         foreach ($c in $imp.Changes) { Write-Host "  $c" -ForegroundColor Green }
     }
-    Write-Host ("  Dipakai: remoteUrl, bridgeKey{0}" -f $(if ($force) { ", defaultModel, tools, backupKeep" } else { "" })) -ForegroundColor DarkGray
+    Write-Host ("  Applied: remoteUrl, bridgeKey{0}" -f $(if ($force) { ", defaultModel, tools, backupKeep" } else { "" })) -ForegroundColor DarkGray
     Write-Host ""
-    Write-Host "  File setup masih ada di disk. Hapus setelah selesai:" -ForegroundColor Yellow
+    Write-Host "  Setup file is still on disk. Delete when done:" -ForegroundColor Yellow
     Write-Host ("    {0}" -f $in) -ForegroundColor DarkGray
     Wait-Enter
 
@@ -872,7 +872,7 @@ while ($true) {
         # Console is redirected, so there is no key to read. Fall back to typing
         # the number. Read-Host returns $null at end of input, hence the quotes
         # around every expansion here.
-        $ans = "$(Read-Host '  Pilih nomor (0 = keluar)')".Trim()
+        $ans = "$(Read-Host '  Select number (0 = quit)')".Trim()
         if ($ans -eq "" -or $ans -eq "q" -or $ans -eq "0") { break }
         for ($i = 0; $i -lt $script:Menu.Count; $i++) {
             if ($script:Menu[$i].Key -eq $ans) { $idx = $i }
@@ -885,20 +885,20 @@ while ($true) {
     $item = $script:Menu[$sel]
 
     switch ($item.Label) {
-        "Sync sekarang"        { Invoke-ActionSync $cfg }
-        "Preview (dry-run)"    { Invoke-ActionSync $cfg -WhatIf }
-        "Ubah pengaturan"      { Invoke-ActionSettings $cfg }
-        "Test koneksi"         { Invoke-ActionTestConnection $cfg }
-        "Test model"           { Invoke-ActionTestModels $cfg }
-        "Validasi file config" { Invoke-ActionValidate $cfg }
-        "Riwayat run"          { Invoke-ActionHistory $cfg }
-        "Pulihkan backup"      { Invoke-ActionRestore }
-        "Kelola URL"           { Invoke-ActionUrls $cfg }
-        "Import setup HP"      { Invoke-ActionImportSetup $cfg }
+        "Sync now"             { Invoke-ActionSync $cfg }
+        "Preview (dry run)"    { Invoke-ActionSync $cfg -WhatIf }
+        "Settings"             { Invoke-ActionSettings $cfg }
+        "Test connection"      { Invoke-ActionTestConnection $cfg }
+        "Test models"          { Invoke-ActionTestModels $cfg }
+        "Validate configs"     { Invoke-ActionValidate $cfg }
+        "Run history"          { Invoke-ActionHistory $cfg }
+        "Restore backup"       { Invoke-ActionRestore }
+        "Manage URLs"          { Invoke-ActionUrls $cfg }
+        "Import phone setup"   { Invoke-ActionImportSetup $cfg }
     }
 }
 
 Clear-Screen
 Write-Host ""
-Write-Host "  9Router Sync - selesai." -ForegroundColor Cyan
+Write-Host "  9Router Sync - finished." -ForegroundColor Cyan
 Write-Host ""

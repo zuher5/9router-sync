@@ -147,19 +147,19 @@ Setelah restart terminal, cukup ketik `9sync` di folder mana pun.
 
 Dashboard di atas, menu di bawah. Panah navigasi, atau tekan key langsung.
 
-| Tombol | Fungsi |
-|---|---|
-| `1` | Sync sekarang — tarik model & koneksi dari 9Router |
-| `2` | Preview (dry-run) — lihat hasilnya tanpa menulis |
-| `3` | Ubah pengaturan — URL, bridge key, default model, tool, jumlah backup |
-| `4` | Test koneksi — bridge hidup? auth benar? katalog berapa? |
-| `5` | Test model — smoke test tiap model, timeout 40 detik |
-| `6` | Validasi file config — parse YAML/JSON + cek pin menggantung |
-| `7` | Riwayat run — 20 sync terakhir |
-| `8` | Pulihkan backup — kembalikan file dari `.bak` bertimestamp |
-| `9` | Kelola URL — uji semua URL, adopsi yang jalan, atau mode LAN |
-| `I` | Import setup dari HP — baca `9sync-setup.local.md` |
-| `0` | Keluar |
+| Tombol | Menu TUI | Fungsi |
+|---|---|---|
+| `1` | `Sync now` | Tarik model & koneksi dari 9Router |
+| `2` | `Preview (dry run)` | Lihat hasilnya tanpa menulis file |
+| `3` | `Settings` | Ubah URL, bridge key, default model, tool, jumlah backup |
+| `4` | `Test connection` | Uji koneksi bridge & auth API key |
+| `5` | `Test models` | Smoke test tiap model, timeout 40 detik |
+| `6` | `Validate configs` | Parse YAML/JSON + cek pin menggantung |
+| `7` | `Run history` | 20 sync terakhir |
+| `8` | `Restore backup` | Kembalikan file dari `.bak` bertimestamp |
+| `9` | `Manage URLs` | Uji semua URL, adopsi yang jalan, atau mode LAN |
+| `I` | `Import phone setup` | Baca file `9sync-setup.local.md` |
+| `0` | `Quit` | Keluar |
 
 ### Command line
 

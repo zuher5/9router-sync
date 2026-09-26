@@ -36,9 +36,9 @@ cd 9router-sync
 .\sync-9router.bat
 ```
 
-1. Tekan `3` (Ubah pengaturan).
+1. Tekan `3` (`Settings`).
 2. Masukkan **URL** dan **Bridge Key** dari Langkah 1.
-3. Tekan `1` (Sync sekarang). Selesai!
+3. Tekan `1` (`Sync now`). Selesai!
 
 ---
 
@@ -69,7 +69,7 @@ Jika tidak ingin menyalin 64 karakter hex secara manual:
    ```powershell
    .\sync-9router.bat --cli -SetupFile "<path>\9sync-setup.local.md"
    ```
-   Atau buka menu `.\sync-9router.bat` lalu tekan `I` (Import setup HP).
+   Atau buka menu `.\sync-9router.bat` lalu tekan `I` (`Import phone setup`).
 
 ---
 
