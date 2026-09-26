@@ -2,8 +2,9 @@
 # from where, then hand back the endings each format actually wants.
 * text=auto
 
-# .bat and .ps1 are read by Windows tooling that is happiest with CRLF.
+# .bat, .cmd, and .ps1 are read by Windows tooling that is happiest with CRLF.
 *.bat text eol=crlf
+*.cmd text eol=crlf
 *.ps1 text eol=crlf
 
 # The sync script writes the tool configs with LF endings on purpose, so docs

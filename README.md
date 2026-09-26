@@ -58,11 +58,18 @@ Copy the **bridge key** and your endpoint:
 ```powershell
 git clone https://github.com/zuher5/9router-sync
 cd 9router-sync
-.\sync-9router.bat
+.\9sync.cmd          # or: .\sync-9router.bat
 ```
 
 1. Press `3` (Settings) -> paste your **URL** and **Bridge key**.
 2. Press `1` (Sync now) -> Done!
+
+> **Tip — Run `9sync` anywhere:**
+> Add this folder to your PATH (run once in PowerShell):
+> ```powershell
+> [Environment]::SetEnvironmentVariable("Path", [Environment]::GetEnvironmentVariable("Path", "User") + ";$PWD", "User")
+> ```
+> Restart terminal. Now you can just type `9sync` or `9sync --cli` from any directory!
 
 ---
 

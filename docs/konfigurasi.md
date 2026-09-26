@@ -123,22 +123,21 @@ berarti ikut 9Router.
 
 ### Launcher
 
-```bat
-.\sync-9router.bat
-```
-
-Tanpa argumen → TUI. Ada argumen → CLI.
-
-Untuk perintah global dari folder mana pun, buat launcher satu baris di folder
-yang sudah ada di PATH:
+Repo ini menyertakan `9sync.cmd` (shortcut praktis) di samping `sync-9router.bat`:
 
 ```bat
-@echo off
-"%USERPROFILE%\.Projects\9router-sync\sync-9router.bat" %*
+.\9sync.cmd           # interaktif (TUI)
+.\9sync.cmd --cli     # CLI langsung
 ```
 
-Simpan sebagai `9sync.cmd`, lalu `9sync`, `9sync --cli -WhatIf`, dan
-sebagainya jalan dari cmd maupun PowerShell.
+Agar perintah `9sync` bisa dipanggil langsung dari folder mana pun di terminal:
+
+```powershell
+# Jalankan sekali di PowerShell untuk mendaftarkan folder repo ke PATH:
+[Environment]::SetEnvironmentVariable("Path", [Environment]::GetEnvironmentVariable("Path", "User") + ";$PWD", "User")
+```
+
+Setelah restart terminal, cukup ketik `9sync` di folder mana pun.
 
 ### Menu
 
