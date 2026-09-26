@@ -1,273 +1,88 @@
-# Alur Termux ke PC
+# Panduan Termux ke PC
 
-Dokumen ini menjelaskan cara 9Router di Android Termux dikonfigurasi ke PC
-Windows, dari awal sampai sinkronisasi pertama berjalan.
+Setup 9Router dari Android ke Windows PC dalam 2 langkah.
 
-**Catatan penting:** Di HP **tidak perlu clone repo ini** jika kamu menyalin URL
-dan Bridge Key secara manual. `9router bridge` adalah perintah bawaan 9Router,
-bukan bagian dari repo ini.
-
-Ada dua cara menghubungkan:
-1. **Cara manual (tanpa clone di HP):** Cukup jalankan 9Router + tunnel di HP, baca key via `9router bridge`, lalu isi config di PC.
-2. **Cara otomatis via script:** Menjalankan `termux/9router-bridge-export.sh` di HP untuk membuat file setup markdown siap-import.
+> **HP tidak perlu clone repo ini.** `9router bridge` adalah perintah bawaan 9Router di Termux.
 
 ---
 
-## 1. Menyiapkan Koneksi & Bridge di HP
+## Langkah 1: Di HP (Termux)
 
-Pastikan 9Router sudah berjalan di Termux (mendengarkan di port lokal `20128`).
-Pilih salah satu dari 3 cara berikut agar PC bisa mengaksesnya:
-
-### Opsi A — Mode LAN (Paling direkomendasikan jika 1 Wi-Fi)
-Tidak butuh tunnel, tidak butuh internet, tidak ada rotasi domain:
-1. Cek IP HP di Termux dengan `ifconfig` atau lihat pengaturan Wi-Fi Android (misal `192.168.1.50`).
-2. Endpoint PC: `http://192.168.1.50:20128`.
-
-### Opsi B — Cloudflare Tunnel (Gratis, tanpa akun, tanpa interstitial)
-1. Install `cloudflared` di Termux:
+1. Pastikan 9Router berjalan (port `20128`).
+2. Tentukan koneksi dari PC ke HP:
+   - **Satu Wi-Fi (LAN, tanpa internet/tunnel):**
+     Cek IP HP di Wi-Fi (`ifconfig`), contoh URL: `http://192.168.1.50:20128`.
+   - **Online (Cloudflare Tunnel, gratis & tanpa akun):**
+     ```sh
+     pkg install cloudflared
+     cloudflared tunnel --url http://127.0.0.1:20128
+     ```
+     Salin URL yang muncul: `https://<random>.trycloudflare.com`.
+   - **Online (ngrok):**
+     `ngrok http 20128` -> salin URL `https://<random>.ngrok-free.dev`.
+3. Ambil bridge key:
    ```sh
-   pkg install cloudflared
+   9router bridge
    ```
-2. Jalankan tunnel:
-   ```sh
-   cloudflared tunnel --url http://127.0.0.1:20128
-   ```
-3. Salin URL publik yang muncul (format: `https://<random>.trycloudflare.com`).
-
-### Opsi C — ngrok
-1. Jalankan ngrok di Termux:
-   ```sh
-   ngrok http 20128
-   ```
-2. Salin URL publik `https://<random>.ngrok-free.dev`.
-   *(Ingat: ngrok punya halaman interstitial peringatan browser; script ini sudah otomatis melewatinya via header).*
-
-### Mengambil Bridge Key
-
-Setelah salah satu opsi di atas aktif, jalankan di Termux:
-
-```sh
-9router bridge
-```
-
-Perintah ini mencetak **bridge key** (64 hex characters) dan URL.
-> Jika HP baru pertama kali dipasang 9Router ("kosongan"), key akan otomatis
-> digenerate di `~/.9router/auth/bridge-key`. Outputnya juga berisi perintah
-> siap pakai untuk PC.
+   Salin **bridge key** (64 hex characters) yang tercetak.
 
 ---
 
-## 2a. Cara manual (Tanpa Clone di HP)
-
-Di PC:
+## Langkah 2: Di PC (Windows)
 
 ```powershell
 git clone https://github.com/zuher5/9router-sync
 cd 9router-sync
-Copy-Item sync-9router.config.example.json sync-9router.config.json
-notepad sync-9router.config.json
+.\sync-9router.bat
 ```
 
-Isi dua baris ini dari output di Termux:
+1. Tekan `3` (Ubah pengaturan).
+2. Masukkan **URL** dan **Bridge Key** dari Langkah 1.
+3. Tekan `1` (Sync sekarang). Selesai!
 
-```json
-{
-  "remoteUrl": "https://<URL_TUNNEL_ATAU_LAN>",
-  "bridgeKey": "<64 karakter hex>",
-  "defaultModel": "",
-  "tools": ["opencode", "omp", "hermes", "claude", "codex"],
-  "backupKeep": 5,
-  "urlHistory": []
-}
-```
+---
 
-Lalu uji & sync:
+## Opsi Lanjutan
+
+### Mode CLI Langsung
 
 ```powershell
+# Cek preview tanpa menulis file
 .\sync-9router.bat --cli -WhatIf
+
+# Sync semua tool yang aktif
 .\sync-9router.bat --cli
 ```
 
-Atau buka menu dan pakai `3` (Ubah pengaturan) kalau lebih suka.
+### Export Otomatis dari HP (Script Helper)
+
+Jika tidak ingin menyalin 64 karakter hex secara manual:
+
+1. Di Termux:
+   ```sh
+   # jalankan script export dari repo
+   bash termux/9router-bridge-export.sh
+   ```
+   Script akan memvalidasi key dan membuat file `9sync-setup.local.md`.
+2. Kirim file tersebut ke PC (via chat, shared folder, atau kabel).
+3. Di PC:
+   ```powershell
+   .\sync-9router.bat --cli -SetupFile "<path>\9sync-setup.local.md"
+   ```
+   Atau buka menu `.\sync-9router.bat` lalu tekan `I` (Import setup HP).
 
 ---
 
-## 2b. Cara otomatis: HP menuliskan config-nya
+## Rotasi Bridge Key
 
-### Menjalankan script di HP
-
-Script-nya di `termux/9router-bridge-export.sh`. Ada dua cara menjalankannya.
-
-**Clone repo di Termux** (kalau `git` belum ada: `pkg install git`):
-
-```sh
-git clone https://github.com/zuher5/9router-sync
-cd 9router-sync
-bash termux/9router-bridge-export.sh
-```
-
-**Atau copy satu file saja**, kalau tidak mau clone seluruh repo:
-
-```sh
-mkdir -p ~/9router-sync/termux
-# salin 9router-bridge-export.sh ke sana lewat file manager atau editor
-cd ~/9router-sync
-bash termux/9router-bridge-export.sh
-```
-
-### Prasyarat
-
-`curl` belum tentu ada di Termux. Script akan memberi tahu dan berhenti dengan
-exit code 2 kalau belum ada:
-
-```sh
-pkg install curl
-```
-
-### Opsi
-
-```sh
-bash 9router-bridge-export.sh                    # URL dideteksi dari `9router bridge`
-bash 9router-bridge-export.sh --url <URL>        # URL eksplisit
-bash 9router-bridge-export.sh --key <HEX>        # bypass file key, untuk uji
-bash 9router-bridge-export.sh --out <PATH>       # tujuannya
-bash 9router-bridge-export.sh --print            # cetak, tidak menulis file
-bash 9router-bridge-export.sh --tools a,b,c      # daftar tool untuk PC
-```
-
-Exit code: `0` berhasil, `1` key atau URL tidak ditemukan / bridge menolak,
-`2` argumen salah atau prasyarat belum ada.
-
-### Yang terjadi di dalam script
-
-1. Resolve bridge key: `REMOTE_9ROUTER_BRIDGE_KEY` → `NINEROUTER_BRIDGE_KEY` →
-   `~/.9router/auth/bridge-key`. Script **tidak pernah** membuat key baru,
-   karena HP adalah source of truth dan key yang dikarang di sini cuma akan
-   ditolak.
-2. Resolve URL tunnel: dari `--url`, atau dari `9router bridge`. Parse output
-   adalah kenyamanan, bukan kontrak — kalau formatnya berubah, `--url` tetap
-   jalan.
-3. Verifikasi dengan `curl` ke `/api/bridge/cli-tools/all-statuses`.
-   `200` = key cocok. `401` = tidak cocok, dan script berhenti tanpa menulis
-   file, karena menuliskan setup file dengan key yang tidak bisa bekerja hanya
-   memindahkan kegagalan ke nanti.
-4. Tulis `9sync-setup.local.md`.
-
-### Keluarannya
-
-Default ke `/storage/emulated/0/Download/9sync-setup.local.md`, karena itu
-folder yang terjangkau file manager, aplikasi chat, atau kabel USB tanpa
-bertarung dengan sandbox Android. Kalau shared storage tidak bisa ditulis,
-script jatuh ke `$HOME` dan memberi tahu.
-
-> **File ini mengandung password.** Jangan masuk commit, jangan dikirim ke
-> chat yang longgar, jangan di-screenshot, dan **hapus setelah konfigurasi
-> selesai**. Namanya diawali `.local` dan sudah masuk `.gitignore` untuk
-> alasan itu, tapi `.gitignore` bukan pengganti menghapus file.
-
----
-
-## 3. Transfer ke PC
-
-Script tidak bisa mengirim file sendiri, jadi pilih salah satu:
-
-| Cara | Catatan |
-|---|---|
-| Kirim ke diri sendiri (Telegram, WhatsApp) | Paling cepat. File masuk folder unduhan PC. |
-| Folder bersama di LAN / Syncthing | Tidak lewat internet sama sekali. |
-| Kabel USB / SD card | Mentah, tapi private. |
-| **GitHub gist** | **Jangan.** Gist itu publik. |
-
----
-
-## 4. Import di PC
-
-Sekali jalan:
-
-```powershell
-.\sync-9router.bat --cli -SetupFile "<path>\9sync-setup.local.md"
-```
-
-Lewati TUI, atau pakai menunya: `.\sync-9router.bat` lalu tekan `I`.
-
-Yang terjadi:
-
-- `remoteUrl` dan `bridgeKey` **selalu** diterapkan — itu yang paling tahu
-  HP, dan hanya HP yang bisa tahu
-- `defaultModel`, `tools` dan `backupKeep` **tidak** diterapkan kecuali kamu
-  minta, supaya daftar tool yang sudah kamu rapikan tidak ditimpa begitu saja
-  oleh file yang di-generate
-- `urlHistory` dapat URL baru di depan, maksimal 6
-- Key yang kerede atau URL yang bukan `http(s)` ditolak, dan config tidak
-  disentuh
-
-Untuk melihat dulu tanpa menulis apa pun:
-
-```powershell
-.\sync-9router.bat --cli -SetupFile "<path>" -WhatIf
-```
-
-### Untuk AI agent
-
-File yang di-generate sudah memuat bagian "Kalau kamu ini AI agent" berisi
-langkah-langkah persis, termasukLarangan menulis bridge key ke file lain.
-Kalau bingung, kirim `9sync-setup.local.md` ke agent dan bilang: *"konfigurasi
-PC ini untuk 9sync"*.
-
----
-
-## 5. Sync pertama
-
-```powershell
-.\sync-9router.bat --cli -WhatIf
-```
-
-Baca outputnya. Kalauzewbt yang diharapkan:
-
-```
-  opencode   5 -> 5   -1 (provider/model-lama)
-  omp        5 -> 5
-  hermes     5 -> 5
-```
-
-Kalau ada baris `not-installed`, tool itu memang belum ada di PC ini — install
-dulu atau keluarkan dari daftar `tools`.
-
-Kalau ada `failed`, **jangan** 계속 ke run berikutnya. Pesan error-nya
-menyebut file dan alasannya, dan tidak ada file yang ditulis pada run yang
-gagal.
-
-Baris `unchanged` artinya file sudah sama persis dengan yang ada di disk. Itu
-hasil yang benar, bukan sync yang gagal.
-
-Setelah yakin:
-
-```powershell
-.\sync-9router.bat --cli
-```
-
----
-
-## 6. Rotasi key
-
-Kalau key bocor, atau kamu hanya mau berganti:
-
+Jika key ingin diganti:
 ```sh
 # di Termux
 rm ~/.9router/auth/bridge-key
-# lalu restart 9Router
+# restart 9Router (key baru otomatis dibuat)
+9router bridge
 ```
-
-Key baru dibuat otomatis. Di PC:
-
-```sh
-bash termux/9router-bridge-export.sh
-```
-
-Lalu import ulang, atau ubah manual lewat menu `3`.
-
-Rotasi tidak mengakhiri URL ngrok yang sekarang, jadi `remoteUrl` juga
-perlu dipastikan benar.
+Lalu perbarui key di PC lewat menu `3`.
 
 ---
 
