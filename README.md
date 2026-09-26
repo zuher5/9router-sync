@@ -211,7 +211,7 @@ Details, verification and the auth mechanism:
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `Belum diisi: remoteUrl, bridgeKey` | Fresh clone, nothing configured yet | Run the export script on the phone, or use menu `3` |
+| `Missing: remoteUrl, bridgeKey` | Fresh clone, nothing configured yet | Run the export script on the phone, or use menu `3` |
 | `401` | Key does not match | `9router bridge` on the phone, re-import |
 | `404` on every route | Tunnel restarted, URL rotated | `9router bridge`, re-import, or menu `9` |
 | `ERR_NGROK_6024` | ngrok interstitial | Already bypassed by the script; do not remove the header |

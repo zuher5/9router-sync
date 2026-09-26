@@ -1511,7 +1511,7 @@ if (-not $__dotSourced) {
     if (-not "$($cfg.bridgeKey)".Trim()) { $missing += "bridgeKey" }
     if ($missing.Count) {
         Write-Host ""
-        Write-Err "Belum diisi: $($missing -join ', ')"
+        Write-Err "Missing: $($missing -join ', ')"
         Write-Host ""
         Write-Host "  Cara tercepat -- biar HP yang menuliskan config-nya:" -ForegroundColor White
         Write-Host ""
