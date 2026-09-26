@@ -1,0 +1,14 @@
+{
+  "remoteUrl": "",
+  "bridgeKey": "",
+  "defaultModel": "",
+  "tools": [
+    "opencode",
+    "omp",
+    "hermes",
+    "claude",
+    "codex"
+  ],
+  "backupKeep": 5,
+  "urlHistory": []
+}

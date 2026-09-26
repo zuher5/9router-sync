@@ -1,0 +1,18 @@
+# Normalise line endings on checkin so diffs stay stable no matter who commits
+# from where, then hand back the endings each format actually wants.
+* text=auto
+
+# .bat and .ps1 are read by Windows tooling that is happiest with CRLF.
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# The sync script writes the tool configs with LF endings on purpose, so docs
+# and data files follow the same convention.
+*.md  text eol=lf
+*.json text eol=lf
+*.sh  text eol=lf
+
+# Binary, never touched.
+*.png binary
+*.jpg binary
+*.ico binary
