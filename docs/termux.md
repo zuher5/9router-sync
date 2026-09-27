@@ -2,7 +2,50 @@
 
 Setup 9Router dari Android ke Windows PC dalam 2 langkah.
 
-> **HP tidak perlu clone repo ini.** `9router bridge` adalah perintah bawaan 9Router di Termux.
+> **HP tidak perlu clone repo ini.** `9router bridge` dan route `/api/bridge/*`
+> disediakan oleh patch di HP — baca [Bridge Perlu Patch](#bridge-perlu-patch-di-hp)
+> dulu kalau perintah `9router bridge` bilang `not installed`.
+
+---
+
+## Bridge Perlu Patch di HP
+
+`9router bridge` dan seluruh `/api/bridge/*` **bukan bawaan 9Router**. 9Router
+resmi tidak punya konsep bridge key, jadi kalau di HP masih 9Router asli,
+perintah itu tidak ada dan `/api/bridge/*` balas `404`.
+
+Di HP yang pakai 9Router Termux, bridge disuntik `9patch`. Jadi:
+
+```sh
+# 1. cek apakah bridge sudah ada
+9router bridge
+
+# 2. kalau "9router is not installed" / command not found:
+#    9patch tidak menemukan paket karena namanya bukan `9router`.
+#    Arahkan 9patch ke nama paket yang benar, lalu apply.
+9patch --help          # cek nama flag untuk menunjuk paket target
+9patch apply
+```
+
+> **Penting — nama paket.** Kalau 9Router di HP diinstal sebagai fork
+> (misalnya `9router-refine`), 9patch secara default mencari paket `9router` dan
+> akan bilang tidak ditemukan. Paket yang di-*apply* adalah yang benar-benar
+> terpasang:
+> ```sh
+> npm ls -g --depth=0 | grep 9router
+> ```
+>
+> Jalankan ulang `9router bridge` setelah `9patch apply`. Kalau masih tidak
+> ada, restart 9Router.
+
+**Patch hilang setiap update 9Router.** `9patch apply` menambal file yang
+sedang terpasang, jadi `npm update` menimpanya. Gejalanya jelas: semua route
+balas `404` padahal sebelumnya jalan, dan `9router bridge` tiba-tiba tidak
+mencetak apa-apa. Solusinya `9patch apply` lagi lalu restart.
+
+> Ganti `9patch apply` dengan perintah yang SESUAI dengan output `9patch --help`
+> di HP kamu. Flag untuk menunjuk paket target berbeda antar versi, dan
+> menyebut flag yang salah di sini lebih buruk daripada tidak menyebutnya.
 
 ---
 

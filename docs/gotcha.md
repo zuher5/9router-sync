@@ -5,6 +5,61 @@ script, tapi dicatat di sini supaya tidak masuk lagi.
 
 ---
 
+## API key tertukar dengan bridge key
+
+Dua secret berbeda, sama-sama ada di HP, dan salah paste cuma belasan detik
+sampai ketahuan.
+
+| | Bentuk | Dipakai untuk |
+|---|---|---|
+| **bridge key** | 64 hex, tanpa `sk-` | header `x-9r-bridge-key`, sync config |
+| **API key** | `sk-…` | `Authorization: Bearer`, inference |
+
+Yang salahpaste menghasilkan `401` — gejalanya identik dengan "key lama", jadi
+sering berburu rotasi key padahal key-nya memang benar. Cek bentuknya dulu:
+`bridgeKey` **wajib** 64 karakter hex. Kalau isinya `sk-`, itu API key.
+
+## Bridge key huruf besar
+
+`remoteBridge.js` membandingkan key dengan `crypto.timingSafeEqual`, yang
+byte-exact dan **case-sensitive**. `ABC…` dan `abc…` itu dua key berbeda.
+
+Yang bikin jebakan: validasi di `9router-bridge-export.sh` memakai
+`/^[0-9a-fA-F]$/`, jadi huruf besar **lolos** di HP, terkirim ke PC, lalu ditolak
+saat dipakai. Export sekarang men-fold ke lowercase sebelum menulis file, dan
+`Resolve-BridgeKey` di PowerShell melakukan hal yang sama untuk config, import
+`-SetupFile`, dan argumen `-BridgeKey`.
+
+Panjang yang meleset 1-2 karakter hampir selalu karakter yang hilang saat
+copy-paste, bukan key yang sudah dirotasi — tapi dari luar keduanya terlihat
+sama. Karena itu pesan error menyebut panjangnya, bukan nilainya.
+
+## `remoteUrl` tanpa scheme
+
+`192.168.1.42:20128` tanpa `http://` **tetap bisa** dites: `Invoke-WebRequest`
+diam-diam mengasumsikan http untuk host:port telanjang. Jadi sync-nya hijau,
+tapi `baseURL` ditulis persis seperti itu ke lima file config tool — dan tidak
+ada tool yang mengasumsikan apa pun. Hasilnya lima tool gagal connects
+bersamaan, dan laporan sync-nya bilang sukses.
+
+Sekarang dicek sebelum ada panggilan jaringan apa pun, dengan pesan yang
+menyebut cara memperbaikinya. `remoteUrl` juga dinormalisasi saat dibaca
+(trailing slash dan spasi dibuang), karena config yang diedit manual adalah
+tempat paling mungkin keluar dari bentuk yang benar.
+
+## Patch bridge hilang setelah update
+
+`9router bridge` dan `/api/bridge/*` bukan bawaan 9Router — disuntik patch di
+HP. `npm update` menimpa file yang ditambal, jadi setelah update semua route
+balas `404` padahal URL dan key tidak berubah sama sekali.
+
+Gejala pembeda: `404` **di semua** route, bukan cuma satu. Rotation URL ngrok
+juga memberi `404`, tapi hanya sampai tunnel-nya dibikin ulang. Kalau `9router
+bridge` juga tidak mencetak apa-apa, itu patch-nya hilang — bukan URL yang
+bergeser. Detail perbaikannya ada di [termux.md](termux.md).
+
+---
+
 ## URL ngrok yang berputar
 
 Domain ngrok free dibuat ulang setiap tunnel di-restart. Gejalanya: semua
