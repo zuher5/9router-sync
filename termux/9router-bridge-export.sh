@@ -88,6 +88,11 @@ if [ -z "$KEY" ]; then
     fi
 fi
 KEY="$(printf '%s' "$KEY" | tr -d '[:space:]')"
+# Folded to lowercase here so the file this script writes is byte-identical to
+# what the bridge compares against. The receiver uses timingSafeEqual, which is
+# case-sensitive, so an uppercase key that passes the hex check below is still a
+# 401 on the PC -- and one that only shows up as "wrong key" after a long paste.
+KEY="$(printf '%s' "$KEY" | tr '[:upper:]' '[:lower:]')"
 
 if [ -z "$KEY" ]; then
     echo "bridge key tidak ditemukan. Dicoba:" >&2
@@ -113,20 +118,39 @@ esac
 # Resolve the tunnel URL
 # ---------------------------------------------------------------------------
 #
-# --url wins. Otherwise take the first tunnel URL out of `9router bridge`
-# (supports ngrok and trycloudflare.com), which prints the ready-to-paste command
-# for the PC. Parsing it is a convenience, not a contract: if the wording
-# changes, --url still works.
+# --url wins. Otherwise take the tunnel URL out of `9router bridge`, which
+# prints the ready-to-paste command for the PC. Parsing it is a convenience, not
+# a contract: if the wording changes, --url still works.
+#
+# Which hostname that URL uses is not fixed. ngrok hands out ngrok-free.dev,
+# ngrok.io and ngrok-app.dev for ephemeral tunnels, a reserved domain or a custom
+# domain is whatever the account owner typed, and Cloudflare prints
+# *.trycloudflare.com. So the known list is tried first and a looser shape is the
+# fallback, because a reserved domain is the normal case for anyone who set the
+# tunnel up once and would rather not re-import a new URL after every reboot.
+#
+# The fallback skips the hosts ngrok prints for its own dashboard and docs, which
+# look exactly like a tunnel URL and would otherwise be picked first. A wrong
+# guess is not fatal: the verification step below rejects it and says which URL
+# was tried, which is what makes a loose fallback acceptable here.
+TUNNEL_HOSTS='ngrok-free\.dev|ngrok\.io|ngrok-app\.dev|ngrok\.app|trycloudflare\.com|loca\.lt|serveo\.net'
+NOT_A_TUNNEL='^https://(dashboard\.ngrok\.com|ngrok\.com|www\.ngrok\.com|docs\.ngrok\.com|github\.com|localhost|127\.0\.0\.1)'
 
 URL_SOURCE=""
-if [ -z "$URL" ]; then
-    if need 9router; then
-        URL="$(9router bridge 2>/dev/null \
-               | grep -oE 'https://[A-Za-z0-9._-]+\.(ngrok-free\.dev|ngrok\.io|ngrok-app\.dev|trycloudflare\.com)' \
+if [ -z "$URL" ] && need 9router; then
+    BRIDGE_OUT="$(9router bridge 2>/dev/null)"
+
+    URL="$(printf '%s' "$BRIDGE_OUT" \
+           | grep -oE 'https://[A-Za-z0-9._-]+\.('"$TUNNEL_HOSTS"')' \
+           | head -n 1)"
+    [ -n "$URL" ] && URL_SOURCE="9router bridge"
+
+    if [ -z "$URL" ]; then
+        URL="$(printf '%s' "$BRIDGE_OUT" \
+               | grep -oE 'https://[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+' \
+               | grep -vE "$NOT_A_TUNNEL" \
                | head -n 1)"
-        if [ -n "$URL" ]; then
-            URL_SOURCE="9router bridge"
-        fi
+        [ -n "$URL" ] && URL_SOURCE="9router bridge (domain kustom)"
     fi
 fi
 URL="$(printf '%s' "$URL" | tr -d '[:space:]')"
@@ -173,9 +197,13 @@ case "$CODE" in
         echo "Pastikan 9Router jalan dan tunnel ngrok aktif." >&2
         exit 1 ;;
     *)
-        echo "bridge menjawab HTTP $CODE (bukan 200)." >&2
+        echo "bridge menjawab HTTP $CODE (bukan 200) untuk $URL." >&2
         echo "Kalau semua route 404, tunnel-nya kemungkinan baru restart" >&2
         echo "dan URL-nya sudah berganti. Jalankan '9router bridge' lagi." >&2
+        echo "Kalau 404 tanpa restart, patch bridge di HP hilang --" >&2
+        echo "jalankan '9patch apply' lalu restart 9Router." >&2
+        echo "Kalau URL-nya domain kustom dan ini salah duga, ulang dengan:" >&2
+        echo "    bash 9router-bridge-export.sh --url https://<hostname>" >&2
         exit 1 ;;
 esac
 
@@ -301,7 +329,9 @@ Dari PC:
 | Gejala | Penyebab | Solusi |
 |---|---|---|
 | \`401\` | key tidak cocok | \`9router bridge\` di HP, import ulang |
+| \`401\` padahal key dari \`9router bridge\` | API key (\`sk-…\`) tertukar dengan bridge key | yang dipakai \`bridgeKey\` harus 64 hex, bukan \`sk-…\` |
 | \`404\` di semua route | tunnel restart, URL berganti | \`9router bridge\`, import ulang |
+| \`404\` di semua route setelah update 9Router | patch bridge hilang | \`9patch apply\` di HP, lalu restart 9Router |
 | \`ERR_NGROK_6024\` | interstitial ngrok | script sudah bypass, jangan hapus header |
 | \`The remote name could not be resolved\` | \`-Tools a,b\` dipecah cmd | \`-Tools a b\` atau \`-Tools a,b\` |
 | semua tool \`not-installed\` | tool-nya belum ada di PC ini | install toolnya, atau kurangi daftar \`tools\` |

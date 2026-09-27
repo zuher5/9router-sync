@@ -44,6 +44,11 @@ Make sure 9Router is running (port `20128`). Get the bridge key:
 9router bridge
 ```
 
+> If that says `not installed` or prints nothing, the bridge is not there yet.
+> `9router bridge` and `/api/bridge/*` are injected by a patch, not part of
+> upstream 9Router, and an update wipes it. See
+> **[docs/termux.md](docs/termux.md)**.
+
 Copy the **bridge key** and your endpoint:
 - **Same Wi-Fi (LAN, no tunnel needed):** `http://<PHONE-IP>:20128`
 - **Online (Cloudflare Tunnel, free & no signup):**
@@ -204,6 +209,16 @@ then `~/.9router/auth/bridge-key`, then generated on first run.
 Read it with `9router bridge` or `cat ~/.9router/auth/bridge-key`. To rotate,
 delete that file and restart 9Router; a new key is generated automatically.
 
+This is **not** your 9Router API key. The API key (`sk-…`) authenticates
+inference calls; the bridge key is a separate 64-hex secret that authenticates
+config sync. Swapping them produces a `401` that looks like a wrong key.
+
+The comparison on the phone is case-sensitive, so an uppercase key is a
+different key. This tool lowercases the key wherever it reads one — config
+file, `-SetupFile` import, `-BridgeKey` argument — and reports the length when
+it is not 64 hex characters. A length that is off by one or two is almost
+always a character lost in a copy-paste, not a rotated key.
+
 Details, verification and the auth mechanism:
 **[docs/bridge-api.md](docs/bridge-api.md)**.
 
@@ -213,7 +228,10 @@ Details, verification and the auth mechanism:
 |---|---|---|
 | `Missing: remoteUrl, bridgeKey` | Fresh clone, nothing configured yet | Run the export script on the phone, or use menu `3` |
 | `401` | Key does not match | `9router bridge` on the phone, re-import |
+| `401` but the key came straight from `9router bridge` | The 9Router **API key** (`sk-…`) was pasted where the **bridge key** belongs | The two are different secrets. `bridgeKey` is 64 hex characters; `sk-…` is for inference only |
 | `404` on every route | Tunnel restarted, URL rotated | `9router bridge`, re-import, or menu `9` |
+| `404` on every route right after a 9Router update | The bridge patch on the phone was overwritten by the update | `9patch apply` on the phone, then restart 9Router. See [docs/termux.md](docs/termux.md) |
+| `remoteUrl harus diawali http:// atau https://` | `remoteUrl` was saved without a scheme | Add the scheme. A bare `192.168.1.42:20128` syncs fine but leaves every tool unable to connect |
 | `ERR_NGROK_6024` | ngrok interstitial | Already bypassed by the script; do not remove the header |
 | `The remote name could not be resolved` | `-Tools a,b` split by cmd | Use `-Tools a b` or `-Tools a,b` |
 | Every tool says `not-installed` | Those tools are not on this PC | Install them, or trim the `tools` list |

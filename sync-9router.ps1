@@ -143,6 +143,25 @@ function Get-Sync9RouterStatePath {
     return (Join-Path $script:ScriptRoot "sync-9router.state.json")
 }
 
+# The bridge receiver compares the key with crypto.timingSafeEqual, which is
+# byte-exact, so an uppercase hex key is a *different* key and comes back as a
+# bare 401 that reads like "wrong key". A key can reach the PC uppercase from an
+# env var, from a copy-paste out of a terminal, or from an editor with
+# autocapitalize on, so every path that accepts one folds it here once instead
+# of at each comparison.
+function Resolve-BridgeKey([string]$key) {
+    return "$key".Trim().ToLowerInvariant()
+}
+
+# A remoteUrl without a scheme still reaches 9Router, because Invoke-WebRequest
+# quietly assumes http for a bare host:port. It is then written verbatim into
+# every tool config, where nothing makes that assumption and the tool simply
+# cannot connect. So the mistake is caught here, where the message can still
+# name the fix, rather than in five tool configs that all fail at once.
+function Test-RemoteUrlScheme([string]$url) {
+    return ("$url".Trim() -match '^https?://')
+}
+
 # Reads sync-9router.config.json over the built-in defaults. A missing or
 # corrupt file is not fatal: the defaults are the documented starting point, and
 # a broken config should not stop someone from syncing.
@@ -166,6 +185,15 @@ function Get-Sync9RouterConfig {
             Write-Warn "Config tidak bisa dibaca ($($_.Exception.Message)), memakai default."
         }
     }
+
+    # Normalized on read rather than trusted as written. A hand-edited config is
+    # where a trailing slash, a stray space, or an uppercased key creeps in, and
+    # each of those is trivial to fix here and expensive to diagnose later from a
+    # 401 or from a tool that will not connect.
+    if ($cfg["remoteUrl"]) { $cfg["remoteUrl"] = "$($cfg["remoteUrl"])".Trim().TrimEnd("/") }
+    if ($cfg["bridgeKey"]) { $cfg["bridgeKey"] = Resolve-BridgeKey $cfg["bridgeKey"] }
+    $cfg["urlHistory"] = @($cfg["urlHistory"] | Where-Object { $_ } |
+                          ForEach-Object { "$_".Trim().TrimEnd("/") })
     return $cfg
 }
 
@@ -245,7 +273,7 @@ function Read-SetupFile([string]$path) {
 function Test-SetupValues($setup) {
     $problems = @()
     $url = "$(if ($setup.PSObject.Properties['remoteUrl']) { $setup.remoteUrl })".Trim()
-    $key = "$(if ($setup.PSObject.Properties['bridgeKey']) { $setup.bridgeKey })".Trim()
+    $key = Resolve-BridgeKey "$(if ($setup.PSObject.Properties['bridgeKey']) { $setup.bridgeKey })"
 
     if (-not $url) {
         $problems += "remoteUrl kosong. URL tunnel ngrok atau http://<IP-LAN>:20128 wajib diisi."
@@ -255,10 +283,12 @@ function Test-SetupValues($setup) {
 
     if (-not $key) {
         $problems += "bridgeKey kosong. Jalankan '9router bridge' di Termux lalu jalankan ulang script export."
-    } elseif ($key -notmatch '^[0-9a-fA-F]{64}$') {
+    } elseif ($key -notmatch '^[0-9a-f]{64}$') {
         # Length is reported rather than the value, so a wrong paste does not
-        # end up echoed into a log or a screenshot.
-        $problems += "bridgeKey harus 64 karakter hex, yang diimpor $($key.Length) karakter."
+        # end up echoed into a log or a screenshot. A length that is off by one
+        # or two is nearly always a dropped character in a copy-paste, not a
+        # rotated key, and those two look identical from the outside.
+        $problems += "bridgeKey harus 64 karakter hex, yang diimpor $($key.Length) karakter. Panjang yang meleset biasanya berarti ada karakter yang hilang saat copy-paste."
     }
     return $problems
 }
@@ -276,7 +306,7 @@ function Import-Sync9RouterSetup([CmdletBinding(SupportsShouldProcess)][string]$
 
     $cfg = Get-Sync9RouterConfig
     $url = "$($setup.remoteUrl)".Trim().TrimEnd('/')
-    $key = "$($setup.bridgeKey)".Trim()
+    $key = Resolve-BridgeKey "$($setup.bridgeKey)"
 
     $changes = @()
     if ("$($cfg.remoteUrl)".Trim().TrimEnd('/') -ne $url) {
@@ -1525,6 +1555,20 @@ if (-not $__dotSourced) {
         Write-Host "         .\sync-9router.bat   ->  menu 3 (Ubah pengaturan)" -ForegroundColor Gray
         Write-Host "    atau salin sync-9router.config.example.json" -ForegroundColor DarkGray
         Write-Host "    ke sync-9router.config.json lalu isi sendiri." -ForegroundColor DarkGray
+        Write-Host ""
+        exit 2
+    }
+
+    # A scheme-less remoteUrl is not a missing value, so it does not belong in
+    # the list above, but it is the same class of mistake caught at the same
+    # moment. Left alone the sync reports success and leaves five tool configs
+    # pointing at a bare host:port that no tool can resolve.
+    if (-not (Test-RemoteUrlScheme $cfg.remoteUrl)) {
+        Write-Host ""
+        Write-Err "remoteUrl harus diawali http:// atau https://, sekarang '$($cfg.remoteUrl)'."
+        Write-Host ""
+        Write-Host "  Contoh LAN    : http://192.168.1.42:20128" -ForegroundColor Gray
+        Write-Host "  Contoh tunnel : https://<hostname>.ngrok-free.dev" -ForegroundColor Gray
         Write-Host ""
         exit 2
     }
