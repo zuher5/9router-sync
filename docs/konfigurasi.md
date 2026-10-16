@@ -1,47 +1,61 @@
 # Konfigurasi
 
-Format file yang dibaca dan ditulis script, aturan merge, dan cara mengoper
+Format file yang dibaca dan ditulis engine, aturan merge, dan cara mengoper
 argumen.
 
 ---
 
 ## 1. Lokasi File Tool di Windows
 
-| CLI Tool | Path | Format | Deteksi |
-|---|---|---|---|
-| **OpenCode** | `$env:USERPROFILE\.config\opencode\opencode.json` | JSON | — |
-| **omp** | `$env:USERPROFILE\.omp\agent\models.yml` | YAML | `omp config path` |
-| **omp** | `$env:USERPROFILE\.omp\agent\config.yml` | YAML | default model di `modelRoles.default` |
-| **Hermes** | `$env:LOCALAPPDATA%\hermes\config.yaml` | YAML | `hermes config path` |
-| **Hermes** | `$env:LOCALAPPDATA%\hermes\.env` | KEY=VALUE | `hermes config env-path` |
-| **Claude Code** | `$env:USERPROFILE\.claude\settings.json` | JSON | — |
-| **Codex CLI** | `$env:USERPROFILE\.codex\config.toml` | TOML | — |
+| CLI Tool | Path | Format |
+|---|---|---|
+| **OpenCode** | `$env:USERPROFILE\.config\opencode\opencode.json` | JSON |
+| **Pi** | `$env:USERPROFILE\.pi\agent\models.json` | JSON |
+| **Pi** | `$env:USERPROFILE\.pi\agent\settings.json` | JSON |
+| **Hermes** | `$env:LOCALAPPDATA\hermes\config.yaml` | YAML |
+| **Hermes** | `$env:LOCALAPPDATA\hermes\.env` | KEY=VALUE |
+| **Claude Code** | `$env:USERPROFILE\.claude\settings.json` | JSON |
+| **Codex CLI** | `$env:USERPROFILE\.codex\config.toml` | TOML |
+| **omp** | `$env:USERPROFILE\.omp\agent\models.yml` | YAML |
+| **omp** | `$env:USERPROFILE\.omp\agent\config.yml` | YAML |
 
 > **Hati-hati dengan `~\.hermes\`.** Script versi lama menulis ke
 > `%USERPROFILE%\.hermes\`. **Hermes tidak membaca file-file itu** —
 > `hermes config path` dan `hermes config env-path` sama-sama menunjuk ke
 > `%LOCALAPPDATA%\hermes\`. File di `~\.hermes\` adalah sisa yang mati.
 
+Path di-resolve dari `$env:USERPROFILE` dan `$env:LOCALAPPDATA` setiap kali
+dipakai, bukan sekali saat file dimuat. Ini yang membuat test bisa mengarahkan
+seluruh tool ke direktori sementara lewat environment variable.
+
 ### Tool yang belum terinstall
 
 Kalau file tool tidak ada, tool itu dilaporkan `not-installed` dan dilewati —
 bukan `skipped`, dan tidak ada file yang dibuat. Alasannya: `skipped` berarti
 "ada tapi tidak ada yang berubah", sedangkan tool yang belum ada adalah fakta
-tentang PC, bukan hasil sync.
+ tentang PC, bukan hasil sync.
 
 Untuk Claude dan Codex, config-nya dibuat oleh tool itu sendiri saat pertama
 dijalankan. Jadi jalankan sekali, baru sync lagi.
 
-Dashboard punya kolom `DI PC` supaya ini kelihatan tanpa harus sync dulu.
+Dashboard hanya menampilkan tool yang benar-benar terpasang di PC ini.
 
 ---
 
-## 2. Format Config yang Dipakai Script
+## 2. Aturan Merge per Tool
 
-### OpenCode — v2 shape (9Router mengirim v1)
+Tidak ada file yang ditulis ulang utuh. Yang dipertahankan:
 
-9Router mengirim bentuk v1, OpenCode v2 mengharapkan bentuk lain. Script
-mentransformasi saat merge:
+### OpenCode
+
+| Yang ditulis | Yang dipertahankan |
+|---|---|
+| `providers.9router` (package, settings, models) | provider lain, `mcp`, `agents`, `$schema` |
+| `model` | — |
+| `agents.<nama>.model` — **dilepas** kalau modelnya hilang | `description`, `mode`, `tools` |
+
+9Router mengirim bentuk v1 (`provider`, `npm`, `options`, `modalities`).
+OpenCode v2 mengharapkan bentuk lain. Script mentransformasi saat merge:
 
 | 9Router (v1) | OpenCode v2 |
 |---|---|
@@ -50,20 +64,31 @@ mentransformasi saat merge:
 | `options` | `settings` |
 | `modalities` | `capabilities` |
 
-Merge, bukan tulis ulang. Yang dipertahankan: `mcp`, `agents`,
-`default_agent`, dan provider lain.
+`package` yang sudah ada di file dipertahankan, jadi adapter yang dipakai user
+tidak ditukar diam-diam.
 
-### Hermes — surgical YAML edit
+### Pi
+
+| File | Yang ditulis | Yang dipertahankan |
+|---|---|---|
+| `models.json` | `providers.9router` (`baseUrl`, `apiKey`, `api`, `models`) | provider lain, seluruh key lain |
+| `settings.json` | `defaultProvider`, `defaultModel` | sisanya |
+
+### Hermes
 
 `config.yaml` berisi puluhan seksi top-level plus provider lain plus
 `fallback_providers` plus `_config_version`. Script hanya menyentuh:
 
-- blok `model:` → `default`, `provider`, `base_url`, `api_key`
+- blok `model:` → `default`, `provider`, `base_url`, dan `key_env` **atau**
+  `api_key` (mana yang sudah dipakai file itu)
 - blok `providers.<nama>:` → `name`, `base_url`, `key_env`, `model`,
   `default_model`, `discover_models`, dan isi `models:`
 
-Segala lainnya — `agent`, `terminal`, `browser`, `memory`, `kanban`, `gateway`,
-`skills`, dan seterusnya — tidak boleh tersentuh.
+Kalau `providers.9router` belum ada, **blok itu dibuat** di dalam blok
+`providers:` yang sudah ada. Provider lain tidak di moversebut. Kalau tidak
+ada `model:` sama sekali, blok itu dibuat di paling atas.
+
+`discover_models` ditulis sebagai boolean YAML (`false`), bukan string `"false"`.
 
 `.env` hanya satu baris yang boleh berubah: `OPENAI_API_KEY`.
 
@@ -74,28 +99,43 @@ Hanya tiga field yang ditulis, sisanya milik tool:
 | Tool | Field yang ditulis |
 |---|---|
 | Claude Code | `env.ANTHROPIC_BASE_URL`, `env.ANTHROPIC_AUTH_TOKEN` |
-| Codex | `base_url`, `api_key`, `model` |
+| Codex | `base_url`, `api_key`, `model` (tabel top-level) |
 
-### Referensi model yang menggantung
+Codex memakai TOML yang **sadar section**: `base_url` di dalam
+`[model_providers.other]` adalah milik provider itu dan tidak disentuh. Kunci
+yang belum ada disisipkan ke section-nya, dan section-nya dibuat kalau perlu —
+bukan di akhir file, yang berarti masuk ke section terakhir secara diam-diam.
+
+### omp
+
+| File | Yang ditulis |
+|---|---|
+| `models.yml` | `providers.9router` saja: `baseUrl`, `apiKey`, `models` |
+| `config.yml` | `modelRoles.default`, dan pin role lain yang sudah mati dilepas |
+
+Semua pencarian di `models.yml` dibatasi ke blok `providers.9router`. Provider
+yang ditulis lebih dulu di file tidak boleh ikut tertimpa.
+
+---
+
+## 3. Referensi model yang menggantung
 
 Kalau model yang sedang di-pin suatu agent dihapus dari 9Router, pin itu tidak
-akan resolve — OpenCode menolak model yang tidak ada di
-`providers.9router.models`. Script **melepas pinnya**, bukan menghapus
-agent-nya:
+akan resolve. Script **melepas pinnya**, bukan menghapus agent-nya:
 
 ```
 opencode  agents.explorer.model -> 'ghost-model' dilepas, model tidak ada lagi
+omp       modelRoles.advisor     -> 'ghost-model' dilepas
 ```
 
 Agent tetap ada dengan `description`, `mode`, dan `tools` utuh, lalu jatuh ke
-default global. Yang dilepas hanya pin yang benar-benar menunjuk provider
-`9router`.
+default global.
 
 Perbedaan penting antara dua kategori referensi model:
 
 | Kategori | Contoh | Yang dilakukan |
 |---|---|---|
-| **Pin ke provider 9Router** | `agents.explorer.model` | Dilepas otomatis, dilaporkan |
+| **Pin ke provider 9Router** | `agents.explorer.model`, `modelRoles.advisor` | Dilepas otomatis, dilaporkan |
 | **Pemanggilan `base_url` langsung** | `hermes fallback_providers` | **Dibiarkan**, hanya dilaporkan |
 
 Yang **tidak pernah** disentuh:
@@ -103,187 +143,127 @@ Yang **tidak pernah** disentuh:
 - `opencode/big-pickle` di `agents.build` / `agents.plan` — itu provider bawaan
   OpenCode, bukan model 9Router
 - `hermes fallback_providers` — pemanggilan `base_url` langsung, melewati
-  daftar model tool. Sudah diuji dan masih hidup; menghapusnya otomatis akan
-  merusak fallback yang berfungsi
+  daftar model tool
 
-```
-Di luar daftar sync, tidak disentuh (base_url langsung):
-  hermes    <provider>/<model>
-```
-
-### Default model
-
-Default model di setiap tool **selalu** ditulis ulang ke nilai default dari
-9Router. `defaultModel` di config hanya jadi override kalau diisi; kosong
-berarti ikut 9Router.
+Pin dikenali baik dalam bentuk string (`9router/x`), string berkuot
+(`"9router/x"`), maupun objek (`{providerID, model}`).
 
 ---
 
-## 3. Pemakaian
+## 4. Status yang dilaporkan
 
-### Launcher
+| Status | Arti |
+|---|---|
+| `updated` | File berubah |
+| `unchanged` | Isi file sudah sama persis — tidak ditulis, tidak dibackup |
+| `whatif` | `-WhatIf` aktif, tidak ada yang ditulis |
+| `skipped` | Ada, tapi tidak ada yang bisa diubah (mis. blok yang dibutuhkan tidak ada) |
+| `not-installed` | Tool belum pernah dijalankan di PC ini |
+| `failed` | Error saat menulis file ini |
 
-Repo ini menyertakan `9sync.cmd` (shortcut praktis) di samping `sync-9router.bat`:
+Ketika satu tool punya beberapa file, status yang ditampilkan adalah yang
+**paling serius**, bukan yang terakhir ditemukan. Jadi omp yang `models.yml`-nya
+ditulis tapi `config.yml`-nya di-skip tetap dilaporkan `updated`.
 
-```bat
-.\9sync.cmd           # interaktif (TUI)
-.\9sync.cmd --cli     # CLI langsung
-```
+---
 
-Agar perintah `9sync` bisa dipanggil langsung dari folder mana pun di terminal:
+## 5. Argumen
 
 ```powershell
-# Jalankan sekali di PowerShell untuk mendaftarkan folder repo ke PATH:
+# Preview
+9sync --cli -WhatIf
+
+# Tool tertentu
+9sync --cli -Tools opencode,hermes
+
+# Lihat model yang akan di-sync, lengkap dengan tool sumbernya di HP
+9sync --cli -ListModels
+
+# Pilih default model secara interaktif (disimpan ke config, lalu sync)
+9sync --cli -PickDefault
+
+# Default model untuk sekali jalan (tidak disimpan)
+9sync --cli -DefaultModel vendor/model
+
+# Endpoint dan key untuk sekali jalan
+9sync --cli -RemoteUrl http://192.168.0.4:20128 -BridgeKey <64hex>
+```
+
+`*` menandai effective default — model yang benar-benar akan dipakai sync
+berikutnya. Kalau config kosong, 9Router yang menentukan (model pertama hasil
+resolusi). Model yang ada di HP tapi tidak ada di katalog muncul di bagian
+Skipped, bukan hilang diam-diam.
+
+Nilai dari command line menang atas file config.
+
+`bridgeKey` dinormalisasi (dipotong whitespace, huruf kecil) di **semua** jalur
+yang menerimanya, termasuk `-BridgeKey`. Bridge membandingkan byte-exact dengan
+`timingSafeEqual`, jadi huruf besar adalah kunci yang berbeda dan hasilnya
+401 yang terbaca seperti "key salah".
+
+Nama tool yang tidak dikenal **menghentikan** sync dengan pesan error. Tidak
+ada fallback ke "semua tool" — itu membuat satu ketik salah terlihat seperti
+sync yang berhasil.
+
+---
+
+## 6. Failur yang tercatat
+
+Run yang gagal **tetap** masuk riwayat. Kalau hanya sukses yang dicatat,
+dashboard indistinguishable antara "belum pernah jalan" dengan "gagal seminggu
+terus".
+
+Riwayat tidak diduplikasi: satu run = satu entri, ditulis di satu tempat saja.
+
+---
+
+## 7. Launcher
+
+| Perintah | Untuk |
+|---|---|
+| `9sync` | Web UI (butuh Node.js) |
+| `9sync --cli` | Sync sekali jalan dari terminal |
+
+Untuk memanggil dari folder mana pun, daftarkan folder repo ke PATH sekali:
+
+```powershell
 [Environment]::SetEnvironmentVariable("Path", [Environment]::GetEnvironmentVariable("Path", "User") + ";$PWD", "User")
 ```
 
-Setelah restart terminal, cukup ketik `9sync` di folder mana pun.
+Setelah terminal di-restart, `9sync` bisa dipanggil dari mana saja.
 
-### Menu
-
-```bat
-.\sync-9router.bat
-```
-
-Dashboard di atas, menu di bawah. Panah navigasi, atau tekan key langsung.
-
-| Tombol | Menu TUI | Fungsi |
-|---|---|---|
-| `1` | `Sync now` | Tarik model & koneksi dari 9Router |
-| `2` | `Preview (dry run)` | Lihat hasilnya tanpa menulis file |
-| `3` | `Settings` | Ubah URL, bridge key, default model, tool, jumlah backup |
-| `4` | `Test connection` | Uji koneksi bridge & auth API key |
-| `5` | `Test models` | Smoke test tiap model, timeout 40 detik |
-| `6` | `Validate configs` | Parse YAML/JSON + cek pin menggantung |
-| `7` | `Run history` | 20 sync terakhir |
-| `8` | `Restore backup` | Kembalikan file dari `.bak` bertimestamp |
-| `9` | `Manage URLs` | Uji semua URL, adopsi yang jalan, atau mode LAN |
-| `I` | `Import phone setup` | Baca file `9sync-setup.local.md` |
-| `0` | `Quit` | Keluar |
-
-### Command line
-
-```powershell
-# sync penuh (semua tool yang aktif di config)
-.\sync-9router.ps1
-
-# preview, tidak menulis file
-.\sync-9router.ps1 -WhatIf
-
-# hanya sebagian tool
-.\sync-9router.ps1 -Tools opencode,hermes
-
-# import file setup dari HP
-.\sync-9router.ps1 -SetupFile C:\path\to\9sync-setup.local.md
-
-# override default model
-.\sync-9router.ps1 -DefaultModel provider/model-name
-
-# jumlah backup yang disimpan
-.\sync-9router.ps1 -BackupKeep 10
-
-# abaikan file config, pakai default
-.\sync-9router.ps1 -NoConfig
-```
-
-Lewati TUI:
-
-```bat
-.\sync-9router.bat --cli
-.\sync-9router.bat --cli -WhatIf
-.\sync-9router.bat --cli -Tools opencode,omp
-```
+> **Jangan kumpulkan ulang argumen di batch.** `shift` tidak menulis ulang
+> `%*`, dan loop `set ARGS=!ARGS! "%~1"` memecah `-Tools opencode,hermes`
+> menjadi dua argumen — sehingga hanya tool pertama yang di-sync, tanpa error.
+> `9sync.cmd` meneruskan `%*` apa adanya setelah flag-nya dihapus secara tekstual.
 
 ---
 
-## 4. Perbedaan cara mengoper argumen
+## 8. keamanan jaringan
 
-`cmd` memecah argumen di koma, PowerShell tidak. Dua bentuk ini setara, tapi
-jangan campur:
+Server web hanya bind ke `127.0.0.1`. Selain itu, setiap request harus
+menyertakan token yang dicetak di terminal saat server start, dan `Origin` yang
+cocok — karena halaman web di browser lain secara teoritis bisa menembak ke
+localhost.
 
-| Konteks | Bentuk yang benar | Yang terjadi kalau salah |
-|---|---|---|
-| Prompt PowerShell | `.\sync-9router.ps1 -Tools a,b` | — |
-| cmd / `.bat` | `.\sync-9router.bat --cli -Tools a b` | `a,b` jadi tiga token, `b` mengikat posisional ke parameter `String` pertama |
-| cmd / `.bat` | `.\sync-9router.bat --cli -Tools a,b` | tetap jalan — `.bat` menyambung ulang koma yang dipecah cmd |
+Bridge key dan API key tidak pernah dikirim ke browser. UI hanya melihat 4
+karakter pertama dan terakhir. Yang disimpan di file config adalah satu-satunya
+salinan.
 
-Yang berbahaya itu baris kedua. Kalau token sisanya mendarat di
-`$RemoteUrl`, seluruh sync diarahkan ke URL sampah. Gejalanya bukan error
-yang jujur, tapi `The remote name could not be resolved: 'b'` — seolah
-masalahnya jaringan, padahal tidak.
-
-`.bat` sekarang menyambung ulang nama tool dengan koma, jadi bentuk
-`-Tools a,b` aman dari cmd. Dan script menolak endpoint yang bukan
-`http://`/`https://` dengan exit code 2 plus penjelasan, jadi salah-paste tidak
-lagi tampak seperti "sync gagal karena DNS".
-
-Nama tool yang tidak dikenal juga diberi tahu, bukan diam-diam dilewati:
-
-```
-[!] Tool tidak dikenal, dilewati: opencod, comp
-```
+`restore backup` hanya menerima file yang memang dikelola tool ini, dan backup
+harus berada di folder yang sama dengan file yang dipulihkan — tanpa itu, cek
+tersebut tidak berarti apa-apa.
 
 ---
 
-## 5. File Settings
+## 9. Encoding
 
-| File | Isi | Ditulis oleh |
-|---|---|---|
-| `sync-9router.config.example.json` | Template, kosong | Repo |
-| `sync-9router.config.json` | URL, bridge key, default model, daftar tool, jumlah backup, riwayat URL | Menu `3` dan `I` |
-| `sync-9router.state.json` | Hasil run terakhir, status per tool, health per model, 20 riwayat | Setiap sync berhasil |
+File dibaca dengan decoder yang sesuai dan ditulis kembali dengan encoding yang
+sama:
 
-Keduanya **di-gitignore**. `config.json` berisi bridge key; `state.json` adalah
-state mesin yang tidak berguna bagi orang lain.
+- UTF-8 (BOM dibuang saat baca, tidak ditulis balik)
+- windows-1252 untuk file yang bukan UTF-8
 
-Identitas dan base URL tetap mengikuti config Android. Yang di-override hanya
-`defaultModel` — biarkan kosong untuk ikut 9Router.
-
-Argumen command line berlaku **hanya untuk run itu**, tidak pernah menjadi
-default baru. `--cli -Tools opencode,omp` menyinkronkan 2 tool sekali jalan;
-daftar tool di `sync-9router.config.json` tetap 5. Yang tersimpan otomatis
-dari sebuah run cuma `state.json` dan tambahan `urlHistory` — sisanya milikmu,
-diubah lewat menu `3`.
-
-### Kalau config belum ada
-
-Config yang tidak ada bukan error; `sync-9router.config.json` yang tidak bisa
-dibaca juga bukan error fatal, karena default adalah titik awal yang
-dokumentasikan. YangKtidak bisa dibiarkan kosong adalah `remoteUrl` dan
-`bridgeKey`: script berhenti dengan exit code 2 **sebelum** request network
-satu pun, dan menunjuk ke `termux/9router-bridge-export.sh`.
-
-Alasan berhenti di awal, bukan membiarkan 401: key kosong akan muncul
-seperti "key salah", padahal masalahnya belum diisi.
-
----
-
-## 6. Perilaku Keamanan
-
-- Backup bertimestamp: `file.20260926-121734.bak`, simpan 5 terakhir per file
-- Tulis UTF-8 **tanpa BOM** (BOM merusak sebagian parser TOML/JSON)
-- Isi identik → `unchanged`, tidak ditulis, tidak dibackup
-- Kalau bridge gagal / respons bukan JSON → **gagal keras**, tidak ada file
-  yang ditulis
-- Model yang tidak ada di katalog dan tidak punya alias → dilewati + dilaporkan
-- Ringkasan akhir per tool: `updated` / `unchanged` / `skipped` /
-  `not-installed` / `failed` / `whatif`
-- Laporan perubahan: `6 -> 5  -1 (provider/model-lama)` per file, plus daftar
-  pin yang dilepas
-
-Tidak ada path absolut yang tertanam di script mana pun, semuanya pakai
-`$PSScriptRoot` / `%~dp0`, jadi foldernya bisa dipindah tanpa perlu mengedit
-apa pun.
-
-`sync-9router.ps1` sengaja ditulis sebagai library sekaligus entry point.
-Kalau di-dot-source, yang terjadi hanya definisi fungsi — tidak ada yang
-dieksekusi. CLI memakai `Invoke-Sync9Router`, TUI memanggil fungsi yang sama,
-jadi hanya ada satu implementasi sinkronisasi.
-
----
-
-## Lihat juga
-
-- [bridge-api.md](bridge-api.md) — route API, sumber model, auth
-- [gotcha.md](gotcha.md) — jebakan yang pernah ditemukan
-- [termux.md](termux.md) — alur kerja HP ke PC
+File config tool sering ditulis oleh tool lain di codepage ANSI. Membacanya
+sebagai UTF-8 akan mengganti byte yang tidak valid dengan U+FFFD, dan rewrite
+membIKATKAN karakter pengganti itu permanen di config user.

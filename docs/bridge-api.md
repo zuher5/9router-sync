@@ -20,7 +20,7 @@ API key 9Router **tidak di-hardcode** — dibaca dari `GET /api/bridge/keys`,
 dengan fallback ke config CLI tool di PC.
 
 > **URL ngrok free berganti tiap tunnel di-restart.** Itu sebabnya ada menu
-> `Kelola URL` dan `urlHistory`. Lihat [gotcha.md](gotcha.md).
+> `Manage URLs` dan `urlHistory`. Lihat [gotcha.md](gotcha.md).
 
 ---
 
@@ -128,7 +128,7 @@ local-only seperti `/api/bridge/keys` tetap bisa dipanggil dari luar internet.
 rm ~/.9router/auth/bridge-key    # lalu restart 9Router
 ```
 
-Key baru dibuat otomatis. Update `sync-9router.config.json` di PC, atau
+Key baru dibuat otomatis. Update key di bagian **Settings** pada web UI, atau
 jalankan ulang `termux/9router-bridge-export.sh` lalu import hasilnya.
 
 > **Key = password.** Tersimpan di file plaintext, dan punya akses baca/tulis
@@ -181,7 +181,7 @@ syarat:
 1. Model baru harus ada di katalog `/v1/models`. Kalau tidak, dilewati +
    muncul di laporan.
 2. Kalau 9Router mengganti nama combo, tambahkan di `$script:ModelAlias`.
-3. Default model selalu ditulis ulang ke nilai dari 9Router.
+3. Dua id lama yang dipetakan ke id yang sama menghasilkan **satu** entri.
 
 ### Alias Model
 
@@ -190,14 +190,29 @@ Kadang ada nama model di config Android yang sudah mati di sisi 9Router, dan
 nama lama ke yang baru sebagai jaring pengaman. Tidak ada efek samping kalau
 entri-nya tidak terpakai.
 
+### Capability yang tidak ada
+
+Katalog boleh tidak menyertakan `tools`. Kalau field itu tidak ada, tool
+calling tetap **aktif** — default-nya benar dan hanya nilai eksplisit yang
+mengubahnya. Hal yang sama berlaku untuk `vision` dan `reasoning`,
+yang default-nya `false`.
+
+Nilai boolean juga dibaca dari string: `"false"` berarti `false`, bukan
+`true` seperti yang terjadi kalau hanya di-cast dengan `[bool]`.
+
 ### Status healthy per model
 
-Dicek lewat menu `Test model` (smoke test `POST /v1/chat/completions`).
+Dicek lewat tombol **Health check** di web UI (smoke test
+`POST /v1/chat/completions`).
 
 Provider yang kehabisan kredit atau sedang lambat **hanya** ketahuan dari
-panggilan nyata — bukan dari config. Itulah alasan menu ini ada. Timeout 40
+panggilan nyata — bukan dari config. Itulah alasan tombol ini ada. Timeout 40
 detik, karena cold start provider tertentu bisa melampaui 25 detik pada
 panggilan pertama dan masih sehat pada panggilan berikutnya.
+
+Hasilnya disimpan di state file, jadi tag `ok`/`failed` bisa berumur beberapa
+hari. UI menampilkan timestamp-nya di baris yang sama, supaya `failed` tidak
+terbaca sebagai "rusak sekarang".
 
 ---
 

@@ -76,12 +76,11 @@ mencetak apa-apa. Solusinya `9patch apply` lagi lalu restart.
 ```powershell
 git clone https://github.com/zuher5/9router-sync
 cd 9router-sync
-.\sync-9router.bat
+9sync
 ```
 
-1. Tekan `3` (`Settings`).
-2. Masukkan **URL** dan **Bridge Key** dari Langkah 1.
-3. Tekan `1` (`Sync now`). Selesai!
+Browser terbuka dengan URL yang berisi token. Isi **Endpoint** dan
+**Bridge Key** dari Langkah 1, lalu klik **Sync now**.
 
 ---
 
@@ -91,10 +90,10 @@ cd 9router-sync
 
 ```powershell
 # Cek preview tanpa menulis file
-.\sync-9router.bat --cli -WhatIf
+9sync --cli -WhatIf
 
 # Sync semua tool yang aktif
-.\sync-9router.bat --cli
+9sync --cli
 ```
 
 ### Export Otomatis dari HP (Script Helper)
@@ -110,9 +109,11 @@ Jika tidak ingin menyalin 64 karakter hex secara manual:
 2. Kirim file tersebut ke PC (via chat, shared folder, atau kabel).
 3. Di PC:
    ```powershell
-   .\sync-9router.bat --cli -SetupFile "<path>\9sync-setup.local.md"
+   powershell -File .\engine\setup.ps1 -SetupFile "<path>\9sync-setup.local.md"
    ```
-   Atau buka menu `.\sync-9router.bat` lalu tekan `I` (`Import phone setup`).
+   Tambahkan `-WhatIf` untuk melihat apa yang akan berubah tanpa menulis, dan
+   `-Force` kalau juga ingin `defaultModel`, `tools`, dan `backupKeep` ikut
+   diterapkan — tanpa itu, daftar tool yang sudah kamu rapikan tidak ditimpa.
 
 ---
 
@@ -125,7 +126,7 @@ rm ~/.9router/auth/bridge-key
 # restart 9Router (key baru otomatis dibuat)
 9router bridge
 ```
-Lalu perbarui key di PC lewat menu `3`.
+Lalu perbarui key di PC lewat bagian **Settings** di web UI.
 
 ---
 

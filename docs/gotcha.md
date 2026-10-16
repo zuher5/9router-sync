@@ -65,7 +65,7 @@ bergeser. Detail perbaikannya ada di [termux.md](termux.md).
 Domain ngrok free dibuat ulang setiap tunnel di-restart. Gejalanya: semua
 route membalas `404`, termasuk root. **Itu bukan bug script.**
 
-Menu `Kelola URL` menyimpan maksimal 6 URL terakhir, mengujinya satu per
+Menu `Manage URLs` menyimpan maksimal 6 URL terakhir, mengujinya satu per
 satu, lalu menawarkan:
 
 ```
@@ -190,18 +190,55 @@ pin yang menggantung.
 
 ---
 
-## Parameter posisional diam-diam menimpa
+## Indeks baris yang basi setelah perubahan
 
-`powershell -File` **tidak** memecah argumen di koma, dan
-`ValueFromRemainingArguments` tidak menangkap sisanya. Argumen posisional
-tambahan mengikat ke parameter `[string]` pertama, yaitu `$RemoteUrl`.
+Blok YAML dihitung sebagai rentang baris. Begitu satu baris disisipkan atau
+dihapus, rentang itu sudah tidak menggambarkan apa yang tippingggi di file.
 
-Jadi `sync-9router.bat --cli -Tools opencode,hermes` yang salah paste bisa
-mengarahkan seluruh sync ke URL sampah, dengan gejala `The remote name could
-not be resolved` — yang terlihat seperti masalah jaringan, padahal bukan.
+Gejalanya beranekaragam: list model ditulis dua kali, satu role yang seharusnya
+dilepas tetap ada, satu key JSON hilang tanpa jejak. Semua berasal dari satu
+pola: `$block = Find-YamlBlock ...`, lalu `$block` dipakai lagi setelah
+`$lines` berubah.
 
-`.bat` sekarang menyambung ulang nama tool dengan koma, dan script menolak
-endpoint yang bukan `http(s)` dengan exit code 2 plus penjelasan.
+Karena itu `engine/lib/yaml-edit.ps1` hanya punya satu tempat yang memindahkan
+baris (`Splice-Lines`), dan setiap operasi mengembalikan array baru. Tidak ada
+nilai indeks yang bertahan melewati sebuah mutasi.
+
+Dua jebakan spesifik yang sudah pernah terjadi:
+
+- `$lines[$n..($n - 1)]` adalah rentang **menurun**. PowerShell
+  mengembalikan elemen terakhir, bukan array kosong, jadi baris terakhir
+  tergandakan.
+- `Find-YamlBlock` tanpa batas mengembalikan kecocokan **pertama** di file.
+  Untuk `models:` di indent 4, itu milik provider mana pun yang ditulis
+  duluan — bukan `9router`.
+
+---
+
+## TOML bukan JSON
+
+Nama key di TOML hanya bermakna di dalam section-nya. `base_url` di
+`[model_providers.other]` milik provider itu; `base_url` yang sama di `[top]`
+milik Codex.
+
+Pencarian `key = value` pertama di seluruh file menimpa milik orang lain, dan
+menyisipkan key baru di akhir file berarti masuk ke section terakhir. Result-nya
+file yang korup sekaligus tidak berfungsi, sambil dilaporkan `updated`.
+
+`engine/lib/toml-edit.ps1` karena itu selalu menerima nama section secara
+eksplisit.
+
+---
+
+## Boolean dan number di YAML
+
+`discover_models: "false"` adalah string. Pembaca YAML membacanya sebagai
+benar, karena string non-kosong apa pun adalah true. Nilai boolean harus
+ditulis tanpa kutip, dan `engine/lib/yaml-edit.ps1` punya jalur `-Raw` untuk
+itu.
+
+Sebaliknya, `format true` dan `123` harus **dikutip** kalau maksudnya string,
+kalau tidak berubah tipe.
 
 ---
 
@@ -212,21 +249,49 @@ Tool yang file config-nya tidak ada dilaporkan `not-installed`, bukan
 belum terinstall, dan kalau semuanya dilaporkan `skipped` hasilnya terlihat
 seperti "sync tidak berhasil apa-apa" — padahal itu kondisi normal.
 
-`skipped` berarti "file ada, tapi tidak ada yang perlu diubah". Status baru
+`skipped` berarti "file ada, tapi tidak ada yang perlu diubah". Status
 `not-installed` berarti fakta tentang PC. Bedanya penting waktu membaca
 laporan.
+
+Status gabungan per tool diambil dari baris yang **paling serius**, bukan yang
+terakhir ditemukan. Versi lama memakai last-writer-wins, jadi omp yang
+`models.yml`-nya baru ditulis tapi `config.yml`-nya di-skip dilaporkan
+`skipped`.
+
+---
+
+## Variabel PowerShell tidak case-sensitive
+
+`$tools` dan `$Tools` adalah variabel yang sama. Kalau `$Tools` dideklarasikan
+`[string[]]`, maka `$tools += [ordered]@{...}` diam-diam dikonversi jadi
+string `"System.Collections.Specialized.OrderedDictionary"` — JSON-nya jadi
+array berisi nama-nama tipe, dan tidak ada error sama sekali.
+
+Ini yang membuat endpoint `-Diagnostics` pernah mengembalikan `tools` sebagai
+array string. Nama variabelnya sekarang `$toolList`.
+
+---
+
+## Add-Member tanpa -Force
+
+`$obj | Add-Member -NotePropertyName "Note"` gagal kalau `Note` sudah ada,
+dan errors-nya muncul sebagai string panjang di dalam respons JSON, bukan
+sebagai crash.
+
+Objek hasil harus dibangun sebagai `[ordered]@{}` baru, bukan ditambal satu per
+satu.
 
 ---
 
 ## Variabel string di dalam string
 
 `$($cfg.bridgeKey).Substring(0, 8)` melempar exception kalau key-nya kosong,
-dan kosong adalah default di repo ini. Dashboard sekarang pakai
-`Format-BridgeKey`, yang panjangnya dijepit dan menampilkan `(belum diisi)`.
+dan kosong adalah default di repo ini. UI menampilkan key dalam bentuk
+4 karakter pertama + 12 bintang + 4 karakter terakhir.
 
-Hal serupa: backtick adalah karakter escape di dalam string PowerScript
+Hal serupa: backtick adalah karakter escape di dalam string PowerShell
 berkutip dua. Pesan error yang memuat ``` ```9sync ``` harus ditulis dengan
-stringberkutip satu dan konkatenasi, kalau tidak dua pertiga fence-nya
+string berkutip satu dan konkatenasi, kalau tidak dua pertiga fence-nya
 dimakan.
 
 ---
