@@ -118,6 +118,16 @@ function renderTools(tools, cfg, perTool) {
   }
 }
 
+function renderConfig(cfg) {
+  state.config = cfg;
+  $('endpoint').textContent = cfg.remoteUrl || 'no endpoint set';
+  $('in-url').value = cfg.remoteUrl || '';
+  $('in-key').value = '';
+  $('in-key').placeholder = cfg.hasBridgeKey
+    ? `saved: ${cfg.bridgeKeyMasked} — paste a new key to replace`
+    : '64 hex characters from the phone';
+}
+
 function renderLastRun(lastRun, log) {
   const box = $('lastrun');
   if (!lastRun) { box.className = 'empty muted'; box.textContent = 'No sync yet.'; return; }
@@ -253,18 +263,6 @@ function renderModels(data) {
   }
 }
 
-function renderConfig(cfg) {
-  state.config = cfg;
-  $('endpoint').textContent = cfg.remoteUrl || 'no endpoint set';
-  $('in-url').value = cfg.remoteUrl || '';
-  $('in-key').value = '';
-  $('in-key').placeholder = cfg.hasBridgeKey
-    ? `saved: ${cfg.bridgeKeyMasked} — type to replace`
-    : '64 hex characters from the phone';
-  $('in-default').value = cfg.defaultModel || '';
-  $('in-keep').value = String(cfg.backupKeep || 5);
-}
-
 async function refresh() {
   try {
     const d = await api('/api/state');
@@ -363,8 +361,6 @@ $('btn-save').addEventListener('click', async () => {
   try {
     const payload = {
       remoteUrl: $('in-url').value,
-      defaultModel: $('in-default').value,
-      backupKeep: Number($('in-keep').value),
       tools: [...(state.config?.tools || [])]
     };
     // Only sent when typed: the field is blank after load, and sending the mask
@@ -457,26 +453,5 @@ $('btn-copy').addEventListener('click', async () => {
     toast('Copied. Secrets are masked.');
   } catch { toast('Clipboard blocked; select the text and copy manually.', 'bad'); }
 });
-
-async function importSetup(dry) {
-  const file = $('in-setup').value.trim();
-  if (!file) { toast('Give the path to 9sync-setup.local.md first.', 'bad'); return; }
-  const btn = dry ? $('btn-setup-dry') : $('btn-setup');
-  busy(btn, true, dry ? 'reading…' : 'importing…');
-  try {
-    const r = await api(`/api/import-setup?file=${encodeURIComponent(file)}${dry ? '&dry=1' : ''}`, { method: 'POST' });
-    $('setup-out').className = r.ok ? '' : 'st-bad';
-    $('setup-out').textContent = r.detail || (r.ok ? 'Done.' : 'Failed.');
-    toast(r.ok ? (dry ? 'Preview only, nothing written.' : 'Imported. Sync now to apply.') : 'Import failed.', r.ok ? '' : 'bad');
-    if (r.ok && !dry) await refresh();
-  } catch (e) {
-    $('setup-out').className = 'st-bad';
-    $('setup-out').textContent = e.message;
-    toast(e.message, 'bad');
-  } finally { busy(btn, false); }
-}
-
-$('btn-setup').addEventListener('click', () => importSetup(false));
-$('btn-setup-dry').addEventListener('click', () => importSetup(true));
 
 refresh();

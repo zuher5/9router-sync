@@ -20,6 +20,23 @@
 </header>
 
 <main>
+  <section class="panel" id="panel-connection">
+    <h2>Connection</h2>
+    <p class="muted small">Paste the bridge key from the phone, save, then test. The key is stored only in the local config file.</p>
+    <div class="form">
+      <label>Endpoint
+        <input id="in-url" type="text" placeholder="http://192.168.0.4:20128">
+      </label>
+      <label>Bridge key
+        <input id="in-key" type="text" placeholder="64 hex characters from the phone" autocomplete="off">
+      </label>
+      <div class="row">
+        <button id="btn-save" class="primary">Save</button>
+        <button id="btn-test">Test connection</button>
+      </div>
+    </div>
+  </section>
+
   <section class="panel">
     <h2>Tools</h2>
     <p class="muted small">Only tools installed on this PC are shown. Others stay available to turn on once installed.</p>
@@ -27,7 +44,22 @@
   </section>
 
   <section class="panel">
-    <h2>Last run</h2>
+    <h2>Models</h2>
+    <p class="muted small">Loaded from the CLI tool configs on the phone — the same list a sync would resolve. Pick any row as the default.</p>
+    <div class="row">
+      <button id="btn-models">Load models</button>
+      <button id="btn-probe">Health check</button>
+      <select id="default-model" class="grow">
+        <option value="">Load models to choose</option>
+      </select>
+      <button id="btn-set-default">Set default</button>
+    </div>
+    <p class="muted small">Health tags come from the last check and can be days old, so a failure there is not proof the model is broken now. <span class="st-ok">*</span> marks the effective default — what the next sync will actually use.</p>
+    <div id="models" class="empty muted">Not loaded.</div>
+  </section>
+
+  <section class="panel">
+    <h2>Activity</h2>
     <div id="lastrun" class="empty muted">No sync yet.</div>
     <details id="rows-wrap" hidden>
       <summary>What each file did</summary>
@@ -40,68 +72,26 @@
   </section>
 
   <section class="panel">
-    <h2>Models</h2>
-    <p class="muted small">Loaded from the CLI tool configs on the phone — the same list a sync would resolve. Pick any row as the default.</p>
-    <div class="row">
-      <button id="btn-models">Load models</button>
-      <button id="btn-probe">Health check</button>
-      <select id="default-model" class="grow"></select>
-      <button id="btn-set-default">Set default</button>
-    </div>
-    <p class="muted small">Health tags come from the last check and can be days old, so a failure there is not proof the model is broken now. <span class="st-ok">*</span> marks the effective default — what the next sync will actually use.</p>
-    <div id="models" class="empty muted">Not loaded.</div>
-  </section>
-
-  <section class="panel">
-    <h2>Settings</h2>
-    <div class="form">
-      <label>Endpoint
-        <input id="in-url" type="text" placeholder="http://192.168.0.4:20128">
-      </label>
-      <label>Bridge key
-        <input id="in-key" type="text" placeholder="64 hex characters from the phone">
-        <span class="muted small">Never sent to the browser after saving. Stored only in the config file.</span>
-      </label>
-      <label>Default model
-        <input id="in-default" type="text" placeholder="leave empty to follow 9Router">
-      </label>
-      <label>Backups to keep
-        <input id="in-keep" type="number" min="1" max="50">
-      </label>
-      <div class="row">
-        <button id="btn-save" class="primary">Save settings</button>
-        <button id="btn-test">Test connection</button>
+    <details id="advanced-wrap">
+      <summary class="adv-head">
+        <h2>Advanced</h2>
+        <span class="muted small">Backups and diagnostics</span>
+      </summary>
+      <div class="adv-body">
+        <h3>Backups</h3>
+        <div class="row">
+          <button id="btn-backups">List backups</button>
+        </div>
+        <div id="backups" class="empty muted">Not loaded.</div>
+        <h3>Diagnostics</h3>
+        <p class="muted small">For bug reports. Secrets are masked before anything leaves this machine.</p>
+        <div class="row">
+          <button id="btn-diag">Gather</button>
+          <button id="btn-copy">Copy to clipboard</button>
+        </div>
+        <pre id="diag" class="empty muted">Not gathered.</pre>
       </div>
-    </div>
-  </section>
-
-  <section class="panel">
-    <h2>Backups</h2>
-    <div class="row">
-      <button id="btn-backups">List backups</button>
-    </div>
-    <div id="backups" class="empty muted">Not loaded.</div>
-  </section>
-
-  <section class="panel">
-    <h2>Diagnostics</h2>
-    <p class="muted small">For bug reports. Secrets are masked before anything leaves this machine.</p>
-    <div class="row">
-      <button id="btn-diag">Gather</button>
-      <button id="btn-copy">Copy to clipboard</button>
-    </div>
-    <pre id="diag" class="empty muted">Not gathered.</pre>
-  </section>
-
-  <section class="panel">
-    <h2>Import phone setup</h2>
-    <p class="muted small">Reads <code>9sync-setup.local.md</code>, the file the phone writes. It holds the bridge key, so delete it once this is done.</p>
-    <div class="row">
-      <input id="in-setup" type="text" placeholder="C:\Users\you\Downloads\9sync-setup.local.md" class="grow">
-      <button id="btn-setup-dry">Preview</button>
-      <button id="btn-setup">Import</button>
-    </div>
-    <pre id="setup-out" class="empty muted"></pre>
+    </details>
   </section>
 </main>
 

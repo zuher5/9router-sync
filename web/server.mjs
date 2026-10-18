@@ -14,7 +14,6 @@ import { fileURLToPath } from 'node:url';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
 const ENGINE = path.join(ROOT, 'engine', 'sync.ps1');
-const SETUP = path.join(ROOT, 'engine', 'setup.ps1');
 const PUBLIC = path.join(HERE, 'public');
 const CONFIG_PATH = process.env.NINESYNC_CONFIG || path.join(ROOT, 'sync-9router.config.json');
 
@@ -297,23 +296,6 @@ const routes = {
   async 'GET /api/diagnostics'() {
     const r = await runEngine([...CONFIG_ARGS, '-Diagnostics']);
     return r.json || { ok: false, error: r.stderr || 'no response' };
-  },
-
-  async 'POST /api/import-setup'(_body, url) {
-    const file = url.searchParams.get('file') || '';
-    if (!file) return { ok: false, error: 'No file given.' };
-    if (!fs.existsSync(file)) return { ok: false, error: `File not found: ${file}` };
-    const args = ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', SETUP, '-SetupFile', file, ...CONFIG_ARGS];
-    if (url.searchParams.get('dry') === '1') args.push('-WhatIf');
-    const r = await new Promise((resolve) => {
-      const ps = spawn('powershell.exe', args, { cwd: ROOT, windowsHide: true });
-      let out = ''; let err = '';
-      ps.stdout.on('data', (d) => { out += d.toString(); });
-      ps.stderr.on('data', (d) => { err += d.toString(); });
-      ps.on('close', (code) => resolve({ code, stdout: out, stderr: err }));
-      ps.on('error', (e) => resolve({ code: -1, stdout: '', stderr: e.message }));
-    });
-    return { ok: r.code === 0, detail: (r.stdout || r.stderr).trim() };
   }
 };
 
