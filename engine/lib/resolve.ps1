@@ -72,14 +72,26 @@ function Collect-WantedModelIds($statuses) {
     $collect = {
         param($cfg, [string]$toolName)
         if (-not $cfg) { return }
-        # Dashboard authority: the phone's new implementation keeps the live
-        # list under the singular `provider` key. The plural `providers` key
-        # is the stale snapshot (deleted models linger there), so it is
-        # ignored entirely - no fallback, otherwise the deleted models leak
-        # back in through the union.
-        if (-not ($cfg.PSObject.Properties.Name -contains "provider") -or -not $cfg.provider) { return }
-        $p = $cfg.provider
-        if ($p.PSObject.Properties.Name -notcontains "9router") { return }
+
+        # Precedence: if the singular `provider` key has a 9router block with
+        # models, it takes precedence (active dashboard export). If not,
+        # fallback to standard plural `providers` key.
+        $p = $null
+        if (($cfg.PSObject.Properties.Name -contains "provider") -and
+            $cfg.provider -and
+            ($cfg.provider.PSObject.Properties.Name -contains "9router") -and
+            $cfg.provider.'9router' -and
+            ($cfg.provider.'9router'.PSObject.Properties.Name -contains "models")) {
+            $p = $cfg.provider
+        } elseif (($cfg.PSObject.Properties.Name -contains "providers") -and
+            $cfg.providers -and
+            ($cfg.providers.PSObject.Properties.Name -contains "9router") -and
+            $cfg.providers.'9router' -and
+            ($cfg.providers.'9router'.PSObject.Properties.Name -contains "models")) {
+            $p = $cfg.providers
+        }
+        if (-not $p) { return }
+
         $nine = $p.'9router'
         if (-not $nine -or -not ($nine.PSObject.Properties.Name -contains "models")) { return }
 

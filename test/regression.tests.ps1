@@ -220,7 +220,7 @@ Test-Case "resolve: model ids are collected from map, array and string shapes" {
     Assert-Equal $wanted.Ids.Count 3 "duplicate ids across tools collapse"
 }
 
-Test-Case "resolve: only the singular provider key is consumed, plural is stale" {
+Test-Case "resolve: singular provider key takes precedence over stale plural providers" {
     $payload = [pscustomobject]@{
         opencode = [pscustomobject]@{
             config = [pscustomobject]@{
@@ -235,15 +235,33 @@ Test-Case "resolve: only the singular provider key is consumed, plural is stale"
         pi = [pscustomobject]@{
             config = [pscustomobject]@{
                 providers = [pscustomobject]@{
-                    "9router" = [pscustomobject]@{ models = @([pscustomobject]@{ id = "anoman/old" }) }
+                    "9router" = [pscustomobject]@{ models = @([pscustomobject]@{ id = "stale/pi-old" }) }
+                }
+                provider = [pscustomobject]@{
+                    "9router" = [pscustomobject]@{ models = @([pscustomobject]@{ id = "b/three" }) }
                 }
             }
         }
     }
     $wanted = Collect-WantedModelIds $payload
     Assert-Contains ($wanted.Ids -join ",") "b/two"
+    Assert-Contains ($wanted.Ids -join ",") "b/three"
     Assert-Equal (@($wanted.Ids -join ",").IndexOf("stale/deleted")) -1 "a deleted model in the stale plural key must not leak back"
-    Assert-Equal (@($wanted.Ids -join ",").IndexOf("anoman/old")) -1 "a tool without the singular key contributes nothing"
+    Assert-Equal (@($wanted.Ids -join ",").IndexOf("stale/pi-old")) -1 "plural key in pi is overridden by singular provider"
+}
+
+Test-Case "resolve: fallback to plural providers when singular provider key is absent" {
+    $payload = [pscustomobject]@{
+        opencode = [pscustomobject]@{
+            config = [pscustomobject]@{
+                providers = [pscustomobject]@{
+                    "9router" = [pscustomobject]@{ models = [pscustomobject]@{ "fallback/model" = @{} } }
+                }
+            }
+        }
+    }
+    $wanted = Collect-WantedModelIds $payload
+    Assert-Contains ($wanted.Ids -join ",") "fallback/model" "standard providers schema is consumed when provider key is absent"
 }
 
 Test-Case "resolve: phone top-level model is collected and reported as phone default" {

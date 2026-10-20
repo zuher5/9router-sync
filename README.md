@@ -204,6 +204,7 @@ bridge key and API key are masked before anything leaves the machine.
 - [docs/bridge-api.md](docs/bridge-api.md) — the bridge endpoints and auth
 - [docs/termux.md](docs/termux.md) — phone-side setup
 - [docs/gotcha.md](docs/gotcha.md) — failure modes and their causes
+- [phoneclient.md](phoneclient.md) — kontrak skema CLI tools untuk 9patch / 9Router HP
 
 ## License
 
